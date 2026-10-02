@@ -3,3 +3,8 @@ DAL.zip
 __pycache__/
 .DS_Store
 Thumbs.db
+
+# Сервер: база, загруженные файлы и локальные настройки
+server/data/
+server/storage/
+server/.env

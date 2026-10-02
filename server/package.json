@@ -1,0 +1,15 @@
+{
+  "name": "dal-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Бэкенд Dal: вход и роли, каталог, обучение, кабинет эксперта, видео, прогнозы, модерация. Без внешних зависимостей.",
+  "type": "module",
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning bin/dal.mjs start",
+    "dev": "node --disable-warning=ExperimentalWarning --watch-path=src bin/dal.mjs start",
+    "reset": "node --disable-warning=ExperimentalWarning bin/dal.mjs reset",
+    "moderator": "node --disable-warning=ExperimentalWarning bin/dal.mjs moderator",
+    "test": "node --disable-warning=ExperimentalWarning --test --test-concurrency=1 tests/*.test.ts"
+  }
+}

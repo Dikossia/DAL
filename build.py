@@ -1,8 +1,9 @@
-"""Собирает автономные файлы (всё встроено, открываются двойным щелчком):
-   Dal.html     — сайт для учеников (из index.html)
-   Studio.html  — кабинет эксперта (из studio.html)
-А также *-artifact.html — варианты для публикации в Claude."""
-import base64, json, re, pathlib
+"""Собирает автономные демо-версии без сервера (всё встроено, открываются двойным щелчком):
+   Dal.html     — сайт для учеников (из demo/index.html)
+   Studio.html  — кабинет эксперта (из demo/studio.html)
+А также *-artifact.html — варианты для публикации в Claude.
+Рабочие версии, подключённые к серверу, — index.html и studio.html в корне; их открывают через npm start в папке server."""
+import base64, json, os, re, pathlib
 
 root = pathlib.Path(__file__).parent
 read = lambda n: (root / n).read_text(encoding='utf8')
@@ -15,8 +16,10 @@ LIBS = {'assets/lucide.min.js'}
 
 def build(source, out, artifact_out):
     html = read(source)
+    base = os.path.dirname(source)
+    rel = lambda p: os.path.normpath(os.path.join(base, p)).replace(os.sep, '/')  # путь относительно html-файла
     def inline_css(m):
-        css = read(m.group(1))
+        css = read(rel(m.group(1)))
         for k, v in FONTS.items():
             css = css.replace(k, v)
         return f'<style>{css}</style>'
@@ -25,6 +28,7 @@ def build(source, out, artifact_out):
     html = re.sub(r'\s*<script src="[^"]+" defer></script>', '', html)
     scripts = []
     for s in srcs:
+        s = rel(s)
         scripts.append(read(s))
         if s in LIBS:  # картинки встраиваем сразу после библиотеки иконок
             scripts.append('window.DAL_IMAGES = ' + json.dumps(IMAGES) + ';')
@@ -42,5 +46,5 @@ def build(source, out, artifact_out):
     print(out, len(html), '|', artifact_out, len(art))
 
 
-build('index.html', 'Dal.html', 'artifact.html')
-build('studio.html', 'Studio.html', 'studio-artifact.html')
+build('demo/index.html', 'Dal.html', 'artifact.html')
+build('demo/studio.html', 'Studio.html', 'studio-artifact.html')
