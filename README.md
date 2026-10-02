@@ -2,7 +2,7 @@
 
 **Dal** — a platform where investors and experts sell their educational, analytical, and consulting products, while students choose an expert based on a transparent history of their results. Expert forecasts are recorded on the **Solana** blockchain: an unsuccessful forecast cannot be rewritten retroactively, and anyone can verify it.
 
-> **Demo:** `VERCEL_LINK` — opens in a browser, no installation required.
+> **Demo:** `VERCEL_LINK` — [opens in a browser, no installation required.](https://dal-kappa.vercel.app/)
 > Login: `student@dal.local` (student), `aliya@dal.local` (expert), `moderator@dal.local` (moderator). Password for all accounts: `dal-demo-2026`.
 > Language: **EN / RU** button in the site header, or add `?lang=en` / `?lang=ru` to the URL. Русская версия README: [README.ru.md](README.ru.md).
 
