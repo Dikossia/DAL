@@ -4,6 +4,7 @@
 
 > **Демо:** `ССЫЛКА_VERCEL` — открывается в браузере, установка не нужна.
 > Вход: `student@dal.local` (ученик), `aliya@dal.local` (эксперт), `moderator@dal.local` (модератор). Пароль у всех: `dal-demo-2026`.
+> Язык: кнопка **EN / RU** в шапке сайта (или `?lang=en` в адресе). / *Switch to English with the **EN** button in the header or `?lang=en`.*
 
 *English summary: Dal is a marketplace where investment experts sell courses, 1:1 consultations, paid clubs/chats and research notes. Every expert forecast can be anchored on Solana (devnet) via a Memo transaction signed in Phantom, so students can verify that the terms were never rewritten. The whole backend (Node.js + SQLite) also runs fully in the browser, so the live demo needs no server.*
 
@@ -79,7 +80,7 @@ web/solana.js ──> Phantom (подпись) ──> Solana Devnet: транз
 
 - **Сервер** — Node.js + TypeScript без внешних зависимостей, встроенный SQLite, 40 автотестов (`server/`, подробности в `server/README.md`).
 - **Режим «сервер в браузере»** — для демо на Vercel. Код сервера из `server/src` собирается в `web/engine.js`, база работает через [sql.js](https://github.com/sql-js/sql.js) (SQLite в WebAssembly, MIT). Включается сам, если сайт открыт не с `localhost`. Данные хранятся в браузере проверяющего; кнопка «Сбросить данные» возвращает демо-набор.
-- **Фронтенд** — HTML, CSS и JavaScript без фреймворков, адаптивная вёрстка, светлая и тёмная темы.
+- **Фронтенд** — HTML, CSS и JavaScript без фреймворков, адаптивная вёрстка, светлая и тёмная темы, русская и английская версии (`web/i18n.js`, словарь `web/i18n-en.js`).
 
 ## Запуск
 
