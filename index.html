@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#fafbf9">
+  <meta name="description" content="Dal — инвестиционное образование, эксперты и сообщество.">
+  <title>Dal — Курсы</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="assets/lucide.min.js" defer></script>
+  <script src="data.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">К содержанию</a>
+  <header class="topbar">
+    <div class="brand-area">
+      <a class="brand" href="#home" aria-label="Dal — главная">Dal<span class="brand-dot"></span></a>
+      <span class="brand-caption">Знания. Люди. Капитал.</span>
+    </div>
+    <div class="mode-controller">
+      <div class="drum" id="drum" role="group" aria-label="Выбор раздела">
+        <div class="drum-sheen" aria-hidden="true"></div>
+        <button class="drum-arrow" data-action="drum-prev" aria-label="Предыдущий режим" title="Предыдущий режим"><i data-lucide="chevron-left"></i></button>
+        <button class="drum-window" id="drumSelect" data-action="drum-select" aria-label="Открыть выбранный режим">
+          <span class="drum-ghost ghost-top" aria-hidden="true"></span>
+          <span class="drum-label" id="drumLabel"></span>
+          <span class="drum-ghost ghost-bottom" aria-hidden="true"></span>
+        </button>
+        <button class="drum-arrow" data-action="drum-next" aria-label="Следующий режим" title="Следующий режим"><i data-lucide="chevron-right"></i></button>
+      </div>
+      <div class="mode-dots" id="modeDots" aria-label="Разделы"></div>
+    </div>
+    <div class="header-actions">
+      <button class="icon-button" data-action="search" aria-label="Поиск" title="Поиск"><i data-lucide="search"></i></button>
+      <button class="icon-button theme-toggle" data-action="theme" aria-label="Переключить тему" title="Светлая / тёмная тема"><i data-lucide="moon"></i></button>
+      <span class="header-divider"></span>
+      <button class="user-trigger" data-action="profile-menu" aria-label="Личный кабинет" aria-expanded="false" aria-controls="profileMenu"><span class="user-avatar">ДА</span><i data-lucide="chevron-down"></i></button>
+    </div>
+    <div class="profile-menu popover" id="profileMenu" hidden></div>
+  </header>
+  <div class="app-shell">
+    <main id="main" tabindex="-1"></main>
+  </div>
+  <canvas id="colorWave" aria-hidden="true"></canvas>
+  <dialog id="modal" aria-labelledby="modalTitle"></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>
