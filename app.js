@@ -185,7 +185,7 @@
     return `<article class="product-card ${compact ? 'compact' : ''}"><div class="product-cover"><a href="#product/${o.id}" tabindex="-1" aria-hidden="true">${cover(o.cover)}</a><button class="icon-button save-button ${saved ? 'saved' : ''}" data-action="save" data-id="${o.id}" aria-label="${saved ? 'Убрать из избранного' : 'В избранное'}" title="${saved ? 'Убрать из избранного' : 'В избранное'}" aria-pressed="${saved}">${icon('bookmark')}</button></div><div class="product-body"><div class="product-kicker">${esc(o.tag)}</div><a class="product-title" href="#product/${o.id}">${esc(o.title)}</a>${expertLink(o.expert)}<div class="product-meta">${meta}</div><div class="product-bottom"><strong>${money(o.price)}</strong>${rating(o.rating, o.reviews)}</div></div></article>`;
   }
   const signalLabels = { active: 'Открыт', success: 'Условие выполнено', miss: 'Не выполнено' };
-  const signalCard = f => `<article class="signal-card"><div class="signal-heading"><div class="ticker"><span class="ticker-symbol">${esc(f.ticker)}</span><div><strong>${esc(f.name)}</strong><p>${esc(f.ticker)} · USD · ${f.direction === 'up' ? 'рост' : 'снижение'}</p></div></div><span class="status ${f.status}">${signalLabels[f.status]}</span></div><p class="fc-condition-public">Цена закрытия на ${fmtDate(f.deadline)} ${f.direction === 'up' ? 'не ниже' : 'не выше'} ${usd(f.targetPrice)}</p><div class="signal-values"><div><label>При публикации</label><strong>${usd(f.startPrice)}</strong></div><div><label>Цель</label><strong>${usd(f.targetPrice)}</strong></div><div><label>${f.status === 'active' ? 'Проверка' : 'Итог'}</label><strong>${f.status === 'active' ? fmtDate(f.deadline).replace(/\s\d{4}$/, '') : usd(f.resultPrice)}</strong></div></div><div class="signal-bottom">${expertLink(f.expert)}<button class="text-link" data-action="signal" data-id="${f.id}">Обоснование ${icon('arrow-right')}</button></div></article>`;
+  const signalCard = f => `<article class="signal-card"><div class="signal-heading"><div class="ticker"><span class="ticker-symbol">${esc(f.ticker)}</span><div><strong>${esc(f.name)}</strong><p>${esc(f.ticker)} · USD · ${f.direction === 'up' ? 'рост' : 'снижение'}</p></div></div><span class="status ${f.status}">${signalLabels[f.status]}</span></div><p class="fc-condition-public">Цена закрытия на ${fmtDate(f.deadline)} ${f.direction === 'up' ? 'не ниже' : 'не выше'} ${usd(f.targetPrice)}</p><div class="signal-values"><div><label>При публикации</label><strong>${usd(f.startPrice)}</strong></div><div><label>Цель</label><strong>${usd(f.targetPrice)}</strong></div><div><label>${f.status === 'active' ? 'Проверка' : 'Итог'}</label><strong>${f.status === 'active' ? fmtDate(f.deadline).replace(/\s\d{4}$/, '') : usd(f.resultPrice)}</strong></div></div>${f.anchor ? `<button class="chain-badge" data-action="verify-anchor" data-id="${f.id}" title="Проверить запись в блокчейне">${icon('link-2')}Зафиксирован в Solana · проверить</button>` : ''}<div class="signal-bottom">${expertLink(f.expert)}<button class="text-link" data-action="signal" data-id="${f.id}">Обоснование ${icon('arrow-right')}</button></div></article>`;
   const expertsStrip = () => `<div class="experts-strip">${[...experts].sort(byRating).map(e => `<a class="expert-mini" href="#expert/${e.id}">${avatar(e.avatarUrl, e.name)}<div><strong>${esc(e.name)}</strong><p>${esc(e.specialization)}</p></div>${rating(e.rating)}</a>`).join('')}</div>`;
   // Горизонтальная полка: заголовок раздела и карточки, которые листаются вбок.
   const shelf = (title, label, href, count, items) => `<section class="shelf"><div class="shelf-head"><div><span class="shelf-label">${esc(label)}</span><h2>${esc(title)}</h2></div><div class="shelf-tools">${href ? `<a class="text-link" href="${href}">Все${count != null ? ` · ${count}` : ''} ${icon('arrow-right')}</a>` : ''}${items.length > 2 ? `<button class="icon-button" data-action="shelf" data-id="-1" aria-label="Листать назад" title="Назад">${icon('chevron-left')}</button><button class="icon-button" data-action="shelf" data-id="1" aria-label="Листать вперёд" title="Вперёд">${icon('chevron-right')}</button>` : ''}</div></div>${items.length ? `<div class="shelf-row">${items.join('')}</div>` : '<p class="shelf-empty">Здесь скоро появятся предложения экспертов.</p>'}</section>`;
@@ -531,6 +531,20 @@
     }, 5000);
   }
 
+  // Проверка прогноза в блокчейне: читаем транзакцию Solana и сравниваем записанные условия с теми, что на сайте.
+  const memoBlock = m => `<pre class="memo">${esc(m)}</pre>`;
+  async function verifyAnchor(f) {
+    openDialog(`${esc(f.ticker)}: проверка в Solana`, `<p class="modal-text" id="verifyWait">Читаем транзакцию из публичного узла Solana…</p>`, 'wide');
+    let r;
+    try { r = await window.DalSolana.verify(f.anchor.signature, f.memo); } catch (e) { r = { error: e.message }; }
+    const body = r.error ? `<div class="notice">Узел Solana не ответил: ${esc(r.error)}. Проверьте по ссылке ниже.</div>`
+      : !r.found ? '<div class="notice">Транзакция пока не найдена в сети. Если её отправили только что, подождите минуту.</div>'
+      : r.ok ? `<div class="verify ok">${icon('shield-check')}<span><strong>Условия не менялись с момента записи в блокчейн</strong><small>Записано ${esc(fmtDate(r.blockTime))} · блок ${nf.format(r.slot)} · кошелёк эксперта ${esc(r.signer.slice(0, 4))}…${esc(r.signer.slice(-4))}</small></span></div>`
+      : `<div class="verify bad">${icon('shield-alert')}<span><strong>Условия на сайте не совпадают с записью в блокчейне</strong><small>В блокчейне записано:</small></span></div>${memoBlock(r.memo)}`;
+    $('#verifyWait')?.remove();
+    modal.insertAdjacentHTML('beforeend', `${body}<h3 class="modal-sub">Условия на сайте</h3>${memoBlock(f.memo)}<a class="text-link" href="${esc(f.anchor.explorerUrl)}" target="_blank" rel="noopener">${icon('external-link')}Открыть транзакцию в Solana Explorer</a><p class="fine-print">Блокчейн подтверждает, что условия зафиксированы до срока проверки и не переписаны. Он не гарантирует, что прогноз верный.</p>`);
+    icons();
+  }
   function closeProfile() { $('#profileMenu').hidden = true; $('.user-trigger').setAttribute('aria-expanded', 'false'); }
   function toggleProfile() {
     const p = $('#profileMenu');
@@ -638,6 +652,7 @@
       case 'rank-tab': rankMode = id; render(); break;
       case 'rank-link': rankMode = id; break;
       case 'signal-filter': signalFilter = id; render(); break;
+      case 'verify-anchor': verifyAnchor(forecasts.find(x => x.id === id)); break;
       case 'signal': {
         const f = forecasts.find(x => x.id === id);
         openDialog(`${esc(f.ticker)}: обоснование`, `<p class="modal-text">${esc(f.rationale)}</p><div class="order-line"><span>Автор</span><strong>${esc(f.expert.name)}</strong></div><div class="order-line"><span>Опубликован</span><strong>${fmtDate(f.publishedAt)}</strong></div><div class="order-line"><span>Проверка условия</span><strong>${fmtDate(f.deadline)}</strong></div>${f.comments.length ? `<h3 class="modal-sub">Комментарии автора</h3>${f.comments.map(c => `<p class="modal-text"><small>${fmtDate(c.createdAt)}</small><br>${esc(c.text)}</p>`).join('')}` : ''}<p class="notice">Это не торговая рекомендация. Условие и срок зафиксированы при публикации.</p>`);

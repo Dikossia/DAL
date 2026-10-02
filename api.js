@@ -16,7 +16,22 @@ window.DalAPI = (() => {
     try { t ? localStorage.setItem(KEY, t) : localStorage.removeItem(KEY); } catch (_) { /* ничего */ }
   }
 
+  // Режим «сервер в браузере» (web/dal-local.js): запрос обрабатывает тот же код сервера прямо на странице.
+  const local = () => window.DalLocal && window.DalLocal.enabled;
+  async function localRequest(method, path, body, headers = {}) {
+    let r;
+    try { r = await window.DalLocal.handle(method, path, { ...(token ? { authorization: 'Bearer ' + token } : {}), ...headers }, body); }
+    catch (e) { console.error(e); throw new ApiError(0, 'offline', 'Не удалось запустить Dal в браузере. Обновите страницу.'); }
+    if (r.status === 204) return null;
+    if (r.status >= 400) {
+      if (r.status === 401 && token) setToken(null);
+      throw new ApiError(r.status, r.data?.error?.code || 'error', r.data?.error?.message || 'Ошибка', r.data?.error?.details);
+    }
+    return r.data ?? null;
+  }
+
   async function request(method, path, body) {
+    if (local()) return localRequest(method, path, body);
     let res;
     try {
       res = await fetch(path, {
@@ -36,6 +51,11 @@ window.DalAPI = (() => {
 
   // Загрузка файла телом запроса с настоящим прогрессом. Возвращает { promise, abort }.
   function upload(path, file, { type, headers = {}, onProgress } = {}) {
+    if (local()) {
+      const promise = localRequest('PUT', path, file, { 'content-type': type || file.type || 'application/octet-stream', 'content-length': String(file.size), ...headers })
+        .then(d => { onProgress?.(1); return d; });
+      return { promise, abort: () => {} };
+    }
     const xhr = new XMLHttpRequest();
     const promise = new Promise((resolve, reject) => {
       xhr.open('PUT', path);

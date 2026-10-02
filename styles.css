@@ -100,3 +100,7 @@ main:focus{outline:none}
 @media(max-width:760px){.shelf-row{grid-auto-columns:80%;gap:12px}.shelf-tools .icon-button{display:none}.avatar-edit{align-items:flex-start}}
 dialog.wide{width:680px}
 input[type=url],input[type=time]{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:11px 13px;font-size:12px;min-height:42px;width:100%}
+.chain-badge{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:700;color:#5b3fb0;background:#efeafc;border-radius:20px;padding:5px 10px;margin:0 0 14px}.chain-badge svg{width:13px;height:13px}[data-theme=dark] .chain-badge{background:#2d2547;color:#c9b8ff}
+pre.memo{white-space:pre-wrap;word-break:break-all;font:11px/1.6 ui-monospace,Consolas,monospace;background:var(--subtle);border-radius:6px;padding:12px;margin:10px 0 14px}
+.verify{display:flex;gap:12px;align-items:flex-start;padding:14px;border-radius:8px;margin:6px 0 10px}.verify span{display:grid;gap:4px}.verify strong{font-size:13px}.verify small{font-size:11px;color:var(--muted)}.verify.ok{background:#e5f2ea;color:#22704f}.verify.bad{background:#faeae7;color:#ab5442}.verify svg{width:22px;height:22px;flex-shrink:0}
+.chain-line{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0}

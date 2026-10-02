@@ -4,6 +4,7 @@ import { parse, str, num, oneOf, date, bool } from '../validate.ts';
 import { RULES } from '../rules.ts';
 import { newId, nowIso, addDays } from '../util.ts';
 import { assertVerifiedExpert } from '../courses.ts';
+import { forecastMemo, forecastAnchor } from '../anchor.ts';
 
 const E: ['expert'] = ['expert'];
 
@@ -13,11 +14,30 @@ export const forecastView = (db: App['db'], f: any) => ({
   deadline: f.deadline, rationale: f.rationale, status: f.status, resultPrice: f.result_price,
   publishedAt: f.published_at, resolvedAt: f.resolved_at,
   condition: `Цена закрытия ${f.ticker} на ${f.deadline} ${f.direction === 'up' ? 'не ниже' : 'не выше'} $${f.target_price}`,
-  comments: db.all('SELECT id, text, created_at AS createdAt FROM forecast_comments WHERE forecast_id = ? ORDER BY created_at', f.id)
+  comments: db.all('SELECT id, text, created_at AS createdAt FROM forecast_comments WHERE forecast_id = ? ORDER BY created_at', f.id),
+  memo: forecastMemo(f), anchor: forecastAnchor(db, f.id)
 });
 
 export function registerStudioForecasts(app: App) {
   const { db, router } = app;
+
+  router.add({
+    method: 'POST', path: '/studio/forecasts/:id/anchor', group: 'Студия: прогнозы',
+    summary: 'Сохранить ссылку на транзакцию Solana, в которой зафиксированы условия прогноза (memo). Делается один раз.', auth: E,
+    body: '{ signature, wallet, cluster: "devnet" }',
+    handler: ({ user, params, body }) => {
+      const f = db.get('SELECT * FROM forecasts WHERE id = ? AND expert_id = ?', params.id, user!.id);
+      if (!f) throw notFound('Прогноз не найден');
+      if (db.get('SELECT 1 FROM forecast_anchors WHERE forecast_id = ?', f.id)) throw conflict('already_anchored', 'Прогноз уже зафиксирован в Solana');
+      const b = parse<{ signature: string; wallet: string; cluster: 'devnet' | 'mainnet-beta' }>(body, {
+        signature: str({ min: 60, max: 100, pattern: /^[1-9A-HJ-NP-Za-km-z]+$/, patternMsg: 'Некорректная подпись транзакции' }),
+        wallet: str({ min: 30, max: 50, pattern: /^[1-9A-HJ-NP-Za-km-z]+$/, patternMsg: 'Некорректный адрес кошелька' }),
+        cluster: oneOf(['devnet', 'mainnet-beta'] as const)
+      });
+      db.run('INSERT INTO forecast_anchors (forecast_id, cluster, signature, wallet, memo, created_at) VALUES (?, ?, ?, ?, ?, ?)', f.id, b.cluster, b.signature, b.wallet, forecastMemo(f), nowIso());
+      return forecastView(db, f);
+    }
+  });
 
   router.add({
     method: 'GET', path: '/studio/forecasts', group: 'Студия: прогнозы', summary: 'Мои прогнозы и статистика.', auth: E,

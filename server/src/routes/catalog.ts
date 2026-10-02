@@ -1,3 +1,4 @@
+import { forecastMemo, forecastAnchor } from '../anchor.ts';
 import path from 'node:path';
 import type { App } from '../app.ts';
 import { notFound, sendFile } from '../http.ts';
@@ -15,7 +16,8 @@ export function registerCatalog(app: App) {
     id: f.id, ticker: f.ticker, name: f.name, direction: f.direction, startPrice: f.start_price, targetPrice: f.target_price,
     deadline: f.deadline, rationale: f.rationale, status: f.status, resultPrice: f.result_price, publishedAt: f.published_at, resolvedAt: f.resolved_at,
     expert: expertBrief(db, f.expert_id),
-    comments: db.all('SELECT text, created_at AS createdAt FROM forecast_comments WHERE forecast_id = ? ORDER BY created_at', f.id)
+    comments: db.all('SELECT text, created_at AS createdAt FROM forecast_comments WHERE forecast_id = ? ORDER BY created_at', f.id),
+    memo: forecastMemo(f), anchor: forecastAnchor(db, f.id)
   });
 
   router.add({

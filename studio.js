@@ -380,6 +380,7 @@
   };
   async function forecastsView() {
     const { stats, forecasts } = await api.get('/studio/forecasts');
+    fcList = forecasts;
     const full = stats.open >= stats.openLimit;
     const list = forecasts.filter(f => fcFilter === 'all' || (fcFilter === 'active' ? f.status === 'active' : f.status !== 'active'));
     return `<div class="heading-row"><h1>Прогнозы</h1>${full ? `<button class="btn" disabled>${icon('lock')}Открыто ${stats.open} из ${stats.openLimit}</button>` : `<a class="btn" href="#forecast-new">${icon('plus')}Новый прогноз</a>`}</div>
@@ -391,7 +392,8 @@
         <div class="signal-values"><div><label>При публикации</label><strong>${usd(f.startPrice)}</strong></div><div><label>Цель</label><strong>${usd(f.targetPrice)}</strong></div><div><label>${active ? 'Проверка' : 'Итог'}</label><strong>${active ? fmtDate(f.deadline).replace(/\s\d{4}$/, '') : usd(f.resultPrice)}</strong></div></div>
         <p class="fc-rationale">${esc(f.rationale)}</p>
         ${f.comments.length ? `<ul class="fc-updates">${f.comments.map(u => `<li><small>${fmtDate(u.createdAt)}</small>${esc(u.text)}</li>`).join('')}</ul>` : ''}
-        <div class="fc-foot"><span class="locked-line">${icon('lock')}Зафиксирован ${fmtDate(f.publishedAt)}</span>${active ? `<button class="text-link" data-action="fc-comment" data-id="${f.id}" data-ticker="${esc(f.ticker)}">${icon('message-square')}Комментарий</button>` : ''}</div></article>`; }).join('')}</div>` : empty('Прогнозов пока нет', 'Опубликуйте первый: тикер, цель, срок и обоснование.', 'radio')}`;
+        <div class="chain-line">${f.anchor ? `<span class="chip live">${icon('link-2')}Зафиксирован в Solana</span><button class="text-link" data-action="verify-anchor" data-id="${f.id}">Проверить в блокчейне</button>` : `<span class="chip review">${icon('link-2')}Не зафиксирован в блокчейне</span><button class="text-link" data-action="anchor" data-id="${f.id}">Зафиксировать в Solana</button>`}</div>
+        <div class="fc-foot"><span class="locked-line">${icon('lock')}Опубликован ${fmtDate(f.publishedAt)}</span>${active ? `<button class="text-link" data-action="fc-comment" data-id="${f.id}" data-ticker="${esc(f.ticker)}">${icon('message-square')}Комментарий</button>` : ''}</div></article>`; }).join('')}</div>` : empty('Прогнозов пока нет', 'Опубликуйте первый: тикер, цель, срок и обоснование.', 'radio')}`;
   }
   function forecastNew() {
     if (!profile?.verified) return `${breadcrumb([['Прогнозы', '#forecasts'], ['Новый прогноз']])}${empty('Сначала подтверждение', 'Публиковать прогнозы можно после того, как модератор подтвердит вашу личность.', 'lock')}`;
@@ -523,6 +525,25 @@
 
   // ---------- Рендер ----------
   let routeKey = '', lastNav = '', seq = 0;
+  // ---------- Solana: фиксация и проверка прогнозов ----------
+  let fcList = [], solWallet = '';
+  const memoBlock = m => `<pre class="memo">${esc(m)}</pre>`;
+  function anchorDialog(f, note = '') {
+    openDialog(`Зафиксировать ${esc(f.ticker)} в Solana`, `<p class="modal-text">Условия прогноза будут записаны в публичный блокчейн Solana (сеть Devnet) транзакцией из вашего кошелька Phantom. После этого любой ученик сможет сверить условия на сайте с записью в блокчейне: переписать прогноз задним числом станет невозможно.</p>${memoBlock(f.memo)}${note}<p class="fine-print">Нужен кошелёк Phantom с включённой сетью Devnet (Настройки → Developer Settings → Testnet mode). Комиссия — доли тестового SOL.</p><div class="modal-actions"><button class="btn secondary" data-action="close-modal">Отмена</button><button class="btn" data-action="anchor-go" data-id="${f.id}">${icon('wallet')}Подключить Phantom и записать</button></div>`, 'wide');
+  }
+  async function verifyDialog(f) {
+    openDialog(`Проверка ${esc(f.ticker)} в Solana`, `<p class="modal-text">Читаем транзакцию из публичного узла Solana…</p>`, 'wide');
+    let r;
+    try { r = await window.DalSolana.verify(f.anchor.signature, f.memo); } catch (e) { r = { error: e.message }; }
+    const body = r.error ? `<div class="notice">${icon('triangle-alert')} Узел Solana не ответил: ${esc(r.error)}. Проверьте вручную по ссылке.</div>`
+      : !r.found ? `<div class="notice">${icon('hourglass')} Транзакция пока не найдена в сети. Если её отправили только что, подождите минуту.</div>`
+      : r.ok ? `<div class="verify ok">${icon('shield-check')}<span><strong>Условия совпадают с записью в блокчейне</strong><small>Записано ${esc(fmtDate(r.blockTime))} · блок ${nf.format(r.slot)} · кошелёк ${esc(r.signer.slice(0, 4))}…${esc(r.signer.slice(-4))}</small></span></div>`
+      : `<div class="verify bad">${icon('shield-alert')}<span><strong>Условия на сайте не совпадают с записью в блокчейне</strong><small>В блокчейне записано:</small></span></div>${memoBlock(r.memo)}`;
+    modal.querySelector('.modal-text')?.remove();
+    modal.insertAdjacentHTML('beforeend', `${body}<h4 class="preview-sub">Условия на сайте</h4>${memoBlock(f.memo)}<a class="text-link" href="${esc(f.anchor.explorerUrl)}" target="_blank" rel="noopener">${icon('external-link')}Открыть транзакцию в Solana Explorer</a>`);
+    icons();
+  }
+
   const studentBlock = () => empty('Dal Studio — для экспертов', 'Вы вошли как ученик. Свои курсы и прогресс смотрите на сайте Dal.', 'clapperboard', `<a class="btn" href="/">${icon('arrow-right')}На сайт Dal</a> <button class="btn secondary" data-action="logout">${icon('log-out')}Выйти</button>`);
   async function view(page, id) {
     if (me.role === 'student') return studentBlock();
@@ -631,6 +652,20 @@
       case 'expert-chat': guard(() => openChat(id, prod?.title), b); break;
       case 'avatar-remove': guard(async () => { await api.del('/me/avatar'); render(); toast('Фото убрано'); }, b); break;
       case 'fc-filter': fcFilter = id; render(); break;
+      case 'anchor': anchorDialog(fcList.find(f => f.id === id)); break;
+      case 'verify-anchor': verifyDialog(fcList.find(f => f.id === id)); break;
+      case 'airdrop': guard(async () => { await window.DalSolana.airdrop(solWallet); toast('Запрошен 1 тестовый SOL. Через несколько секунд нажмите «Записать» ещё раз.'); }, b); break;
+      case 'anchor-go': guard(async () => {
+        const f = fcList.find(x => x.id === id);
+        try {
+          solWallet = await window.DalSolana.connect();
+          const bal = await window.DalSolana.balance(solWallet).catch(() => null);
+          if (bal !== null && bal < 0.00001) { anchorDialog(f, `<div class="notice">${icon('info')} На кошельке ${esc(solWallet.slice(0, 4))}…${esc(solWallet.slice(-4))} нет тестовых SOL для комиссии. <button class="text-link" data-action="airdrop">Получить 1 SOL</button> или возьмите на <a class="text-link" href="https://faucet.solana.com" target="_blank" rel="noopener">faucet.solana.com</a>.</div>`); return; }
+          const { signature, wallet } = await window.DalSolana.anchor(f.memo);
+          await api.post(`/studio/forecasts/${id}/anchor`, { signature, wallet, cluster: window.DalSolana.CLUSTER });
+          modal.close(); await render(); toast('Прогноз зафиксирован в Solana');
+        } catch (e) { if (e.code === 'no_wallet') anchorDialog(f, `<div class="notice">${icon('wallet')} ${esc(e.message)}</div>`); else throw e; }
+      }, b); break;
       case 'rv-filter': rvFilter = id; render(); break;
       case 'cover': guard(async () => { current = await api.patch(`/studio/courses/${current.id}`, { cover: id }); rerenderEditor(); }, b); break;
       case 'add-module': guard(async () => { current = await api.post(`/studio/courses/${current.id}/modules`, {}); rerenderEditor(); }, b); break;

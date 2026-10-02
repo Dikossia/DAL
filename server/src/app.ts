@@ -39,6 +39,7 @@ const DB_ERRORS: [RegExp, number, string, string][] = [
   [/forecast_already_resolved/, 409, 'forecast_resolved', 'Итог прогноза уже определён.'],
   [/course_has_students/, 409, 'course_has_students', 'Курс купили ученики, его можно только скрыть из каталога.'],
   [/review_immutable/, 409, 'review_immutable', 'Отзывы не удаляются. Пожалуйтесь на отзыв, решение примет модерация.'],
+  [/anchor_immutable/, 409, 'anchor_immutable', 'Фиксацию в блокчейне нельзя изменить или удалить.'],
   [/slot_booked/, 409, 'slot_booked', 'На это время записан ученик. Сначала отмените запись.'],
   [/UNIQUE constraint failed: forecasts\.expert_id, forecasts\.ticker/, 409, 'forecast_ticker_open', 'По этому тикеру уже есть открытый прогноз.'],
   [/UNIQUE constraint failed: users\.email/, 409, 'email_taken', 'Этот адрес почты уже зарегистрирован.'],
