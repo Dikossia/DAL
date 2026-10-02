@@ -3,13 +3,14 @@ import { HttpError } from '../http.ts';
 import { parse, str, oneOf } from '../validate.ts';
 import { hashPassword, verifyPassword, createSession, dropSession, tokenFrom } from '../auth.ts';
 import { newId, nowIso } from '../util.ts';
+import { avatarUrl } from '../experts.ts';
 
 export function registerAuth(app: App) {
   const { db, router } = app;
   const me = (id: string) => {
-    const u = db.get('SELECT id, email, name, role, created_at FROM users WHERE id = ?', id)!;
-    const p = u.role === 'expert' ? db.get('SELECT verified_at FROM expert_profiles WHERE user_id = ?', id) : null;
-    return { id: u.id, email: u.email, name: u.name, role: u.role, createdAt: u.created_at, ...(p ? { verified: !!p.verified_at } : {}) };
+    const u = db.get('SELECT id, email, name, role, created_at, avatar_file FROM users WHERE id = ?', id)!;
+    const p = u.role === 'expert' ? db.get('SELECT verified_at, avatar FROM expert_profiles WHERE user_id = ?', id) : null;
+    return { id: u.id, email: u.email, name: u.name, role: u.role, createdAt: u.created_at, avatarUrl: avatarUrl({ avatar_file: u.avatar_file, avatar: p?.avatar }), ...(p ? { verified: !!p.verified_at } : {}) };
   };
 
   router.add({

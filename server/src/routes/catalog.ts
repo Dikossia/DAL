@@ -3,31 +3,18 @@ import type { App } from '../app.ts';
 import { notFound, sendFile } from '../http.ts';
 import { CATEGORIES } from '../rules.ts';
 import { courseCard, structure, getCourse } from '../courses.ts';
+import { expertPublic, expertBrief } from '../experts.ts';
+import { productCard } from '../products.ts';
 
 // Публичная часть: то, что видно без входа.
 export function registerCatalog(app: App) {
   const { db, router } = app;
 
-  const expertStats = (id: string) => {
-    const f = db.get(`SELECT SUM(status = 'success') AS ok, SUM(status <> 'active') AS done, SUM(status = 'active') AS open FROM forecasts WHERE expert_id = ?`, id)!;
-    const s = db.get(`SELECT COUNT(DISTINCT e.user_id) AS n FROM enrollments e JOIN courses c ON c.id = e.course_id WHERE c.expert_id = ? AND e.status = 'active'`, id)!;
-    const r = db.get(`SELECT AVG(r.rating) AS avg, COUNT(*) AS n FROM reviews r JOIN courses c ON c.id = r.course_id WHERE c.expert_id = ? AND r.hidden = 0`, id)!;
-    return {
-      students: s.n,
-      rating: r.avg ? Math.round(r.avg * 100) / 100 : null,
-      reviews: r.n,
-      forecasts: { open: f.open || 0, done: f.done || 0, success: f.ok || 0, successRate: f.done ? Math.round((f.ok / f.done) * 1000) / 10 : null }
-    };
-  };
-  const expertPublic = (row: any) => ({
-    id: row.id, name: row.name, specialization: row.specialization, bio: row.bio, experience: row.experience,
-    achievements: JSON.parse(row.achievements || '[]'), avatarUrl: row.avatar ? `/assets/${row.avatar}.jpg` : null,
-    verified: !!row.verified_at, ...expertStats(row.id)
-  });
+  const expertRow = `SELECT u.id, u.name, u.avatar_file, p.* FROM users u JOIN expert_profiles p ON p.user_id = u.id`;
   const forecastPublic = (f: any) => ({
     id: f.id, ticker: f.ticker, name: f.name, direction: f.direction, startPrice: f.start_price, targetPrice: f.target_price,
     deadline: f.deadline, rationale: f.rationale, status: f.status, resultPrice: f.result_price, publishedAt: f.published_at, resolvedAt: f.resolved_at,
-    expert: { id: f.expert_id, name: f.expert_name },
+    expert: expertBrief(db, f.expert_id),
     comments: db.all('SELECT text, created_at AS createdAt FROM forecast_comments WHERE forecast_id = ? ORDER BY created_at', f.id)
   });
 
@@ -77,16 +64,17 @@ export function registerCatalog(app: App) {
 
   router.add({
     method: 'GET', path: '/experts', group: 'Каталог', summary: 'Эксперты с рейтингом и статистикой прогнозов.',
-    handler: () => db.all(`SELECT u.id, u.name, p.* FROM users u JOIN expert_profiles p ON p.user_id = u.id WHERE u.role = 'expert' AND p.verified_at IS NOT NULL ORDER BY u.name`).map(expertPublic)
+    handler: () => db.all(`${expertRow} WHERE u.role = 'expert' AND p.verified_at IS NOT NULL ORDER BY u.name`).map(r => expertPublic(db, r))
   });
 
   router.add({
-    method: 'GET', path: '/experts/:id', group: 'Каталог', summary: 'Профиль эксперта и его курсы в каталоге.',
+    method: 'GET', path: '/experts/:id', group: 'Каталог', summary: 'Страница учителя: профиль, соцсети, рейтинг в каждом режиме, курсы и продукты в каталоге, прогнозы.',
     handler: ({ params }) => {
-      const row = db.get(`SELECT u.id, u.name, p.* FROM users u JOIN expert_profiles p ON p.user_id = u.id WHERE u.id = ? AND u.role = 'expert'`, params.id);
+      const row = db.get(`${expertRow} WHERE u.id = ? AND u.role = 'expert'`, params.id);
       if (!row) throw notFound('Эксперт не найден');
       const courses = db.all(`SELECT * FROM courses WHERE expert_id = ? AND status = 'published' ORDER BY published_at DESC`, row.id).map(c => courseCard(db, c));
-      return { ...expertPublic(row), courses };
+      const products = db.all(`SELECT * FROM products WHERE expert_id = ? AND status = 'published' ORDER BY published_at DESC`, row.id).map(p => productCard(db, p));
+      return { ...expertPublic(db, row), courses, products };
     }
   });
 

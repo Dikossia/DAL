@@ -125,6 +125,135 @@ export function seed(db: DB, siteDir: string, seedDir: string): { accounts: { em
     addForecast({ id: 's2', ticker: 'MSFT', name: 'Microsoft', direction: 'up', start: 430, target: 460, current: 468, publishedAt: '2026-09-01', deadline: '2026-09-30', status: 'success', rationale: 'Условие: цена закрытия 30 сентября не ниже $460.' }, 'arman');
     addForecast({ id: 's3', ticker: 'NVDA', name: 'NVIDIA', direction: 'up', start: 170, target: 190, current: 164, publishedAt: '2026-09-01', deadline: '2026-09-30', status: 'miss', rationale: 'Условие: цена закрытия 30 сентября не ниже $190. Неуспешный прогноз остаётся в истории.' }, 'timur');
     addForecast({ id: 's4', ticker: 'SPY', name: 'S&P 500 ETF', direction: 'up', start: 620, target: 650, current: 632, publishedAt: '2026-09-20', deadline: '2026-10-20', status: 'active', rationale: 'Условие: цена закрытия 20 октября не ниже $650.' }, 'arman');
+
+    // ----- Продукты: работа с экспертом, сообщество, идеи (из каталога макета) -----
+    seedProducts(db, DAL);
   });
   return { accounts };
+}
+
+const IDEAS: Record<string, string> = {
+  i1: `Устойчивый бизнес видно не по одной удачной цифре, а по тому, как компания проходит плохие годы.
+
+## Три признака устойчивости
+Первый — повторяемая выручка: подписки, контракты, привычка клиентов. Второй — денежный поток, который стабильно покрывает капитальные затраты. Третий — умеренный долг: проценты по нему не съедают прибыль даже в слабый год.
+
+## Как проверить самому
+Откройте отчётность за пять–семь лет. Найдите самый слабый год и посмотрите, что стало с выручкой, маржой и долгом. Если компания осталась прибыльной и не нарастила долг, это хороший знак.
+
+## Где граница вывода
+Устойчивый бизнес может стоить слишком дорого. Качество компании и привлекательность цены — два разных вопроса, их нужно проверять отдельно.`,
+  i2: `Диверсификация — это не «купить побольше разных бумаг», а распределить риск так, чтобы одна ошибка не разрушила весь портфель.
+
+## Что на самом деле снижает риск
+Важно, насколько по-разному активы ведут себя в одной ситуации. Десять банковских акций дают меньше разнообразия, чем три бумаги из разных отраслей и одна облигация.
+
+## Частые ошибки
+Покупать фонд и отдельно те же акции, которые в нём уже есть. Держать всё в одной валюте при расходах в другой. Считать диверсификацией количество позиций, а не их связь между собой.
+
+## Простой вопрос для проверки
+Что случится с портфелем, если упадёт один сектор на 30%? Если ответ «почти весь портфель упадёт вместе с ним», диверсификации нет.`,
+  i3: `Сезон отчётности — время, когда рынок сверяет ожидания с фактами. Цена часто реагирует не на сами цифры, а на разницу между ними и прогнозом аналитиков.
+
+## На что смотреть
+Выручку и маржу в сравнении с прошлым годом, прогноз менеджмента на следующий период и комментарии о спросе. Разовые статьи лучше выносить за скобки.
+
+## Почему цена может упасть на хорошем отчёте
+Если ожидания были выше, даже рост прибыли разочарует рынок. Поэтому полезно заранее записать, какие цифры вы считаете хорошими, и сравнивать с ними, а не с реакцией цены.
+
+## Что делать с этим знанием
+Не принимать решений в первые часы после публикации. Сначала прочитать отчёт целиком и проверить, изменилась ли ваша исходная гипотеза.`,
+  i4: `Выручка показывает, сколько компания продала, но не сколько денег у неё осталось. Путь от выручки к денежному потоку — главный навык в разборе любой компании.
+
+## Шаг 1. От выручки к операционной прибыли
+Вычитаем себестоимость и операционные расходы. Смотрим, как меняется маржа: растёт ли она вместе с выручкой или съедается расходами.
+
+## Шаг 2. От прибыли к операционному потоку
+Добавляем неденежные расходы, учитываем изменение запасов и дебиторской задолженности. Если прибыль растёт, а поток нет, деньги «застревают» в оборотном капитале.
+
+## Шаг 3. Свободный денежный поток
+Вычитаем капитальные затраты. Именно из свободного потока компания платит дивиденды, гасит долг и выкупает акции. Его стабильность важнее одного удачного года прибыли.`
+};
+
+function seedProducts(db: DB, DAL: any) {
+  const now = new Date();
+  const at = (days: number, hour: number) => { const d = new Date(now); d.setDate(d.getDate() + days); d.setHours(hour, 0, 0, 0); return d.toISOString(); };
+  const sched: Record<string, string> = {
+    g1: 'Встречи по средам в 19:00 (Алматы): каждую неделю разбираем одну компанию.',
+    g2: 'Раз в неделю, по воскресеньям в 18:00 (Алматы): обсуждаем главу книги.'
+  };
+  const modeOf: Record<string, string> = {};
+  for (const m of DAL.modes) modeOf[m.id] = m;
+  for (const p of DAL.products.filter((x: any) => x.mode !== 'courses')) {
+    const mode = modeOf[p.mode] as any, cat = mode.categories.find((c: any) => c.id === p.category);
+    const expert = DAL.experts.find((e: any) => e.id === p.expert);
+    const sessions = p.category === 'consultation' ? 1 : p.category === 'personal' ? 4 : p.category === 'mentorship' ? 12 : null;
+    const kind = sessions ? 'sessions' : p.mode === 'community' ? 'subscription' : 'material';
+    const created = at(-150, 10);
+    db.run(`INSERT INTO products (id, expert_id, mode, type, title, description, price, cover, status, duration_min, sessions, period_days, meeting_url, schedule_note, content, published_at, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'published', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      p.id, p.expert, p.mode, p.category, p.title, `${cat.description} ${expert.bio}`, p.price, p.image,
+      kind === 'sessions' ? 60 : null, sessions, kind === 'subscription' ? 30 : null,
+      kind === 'sessions' || p.category === 'clubs' ? `https://meet.example.com/dal-${p.id}` : null, sched[p.id] ?? null, IDEAS[p.id] ?? null,
+      at(-120, 10), created, created);
+    if (kind === 'sessions') for (let d = 2; d <= 20; d += 3) for (const h of [12, 18]) db.run('INSERT INTO product_slots (id, product_id, starts_at) VALUES (?, ?, ?)', `${p.id}-s${d}-${h}`, p.id, at(d, h));
+  }
+
+  const buy = (user: string, product: string, daysAgo: number, opts: { expiresIn?: number } = {}) => {
+    const p = db.get('SELECT * FROM products WHERE id = ?', product)!;
+    const id = `${user}-${product}`;
+    db.run('INSERT INTO product_purchases (id, user_id, product_id, price_paid, commission, sessions_total, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      id, user, product, p.price, Math.round(p.price * RULES.commission), p.sessions, p.period_days ? at(opts.expiresIn ?? 30 - daysAgo, 23) : null, at(-daysAgo, 11));
+    return id;
+  };
+  const book = (purchase: string, product: string, user: string, days: number, hour: number) =>
+    db.run('INSERT INTO product_slots (id, product_id, starts_at, booked_by, purchase_id, booked_at) VALUES (?, ?, ?, ?, ?, ?)', `${product}-b-${user}-${days}`, product, at(days, hour), user, purchase, at(Math.min(days, 0) - 1, 9));
+  const review = (product: string, user: string, rating: number, text: string, daysAgo: number, reply: string | null = null) =>
+    db.run('INSERT INTO product_reviews (id, product_id, user_id, rating, text, created_at, reply, replied_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      `pr-${product}-${user}`, product, user, rating, text, at(-daysAgo, 15), reply, reply ? at(-daysAgo + 1, 10) : null);
+
+  // Работа с экспертом
+  const s1 = buy('student', 'e1', 6); book(s1, 'e1', 'student', 3, 15);
+  const a1 = buy('aruzhan', 'e1', 40); book(a1, 'e1', 'aruzhan', -30, 18);
+  review('e1', 'aruzhan', 5, 'За час разобрали мои цели и составили понятный план. Арман объясняет без давления.', 28, 'Аружан, рад, что план получился понятным!');
+  const d2 = buy('daniyar', 'e2', 25); book(d2, 'e2', 'daniyar', -20, 19);
+  review('e2', 'daniyar', 5, 'Алия задала вопросы, о которых я не думал. Стало ясно, где мой подход слабый.', 18);
+  const m3 = buy('madina', 'e3', 30); book(m3, 'e3', 'madina', -21, 18); book(m3, 'e3', 'madina', -14, 18); book(m3, 'e3', 'madina', 5, 15);
+  review('e3', 'madina', 5, 'Четыре занятия — и я читаю отчётность сама. Домашние задания очень помогли.', 10);
+  const k5 = buy('kamila', 'e5', 50); book(k5, 'e5', 'kamila', -40, 12); book(k5, 'e5', 'kamila', -26, 12);
+  review('e5', 'kamila', 4, 'Регулярные встречи дисциплинируют. Хотелось бы чуть больше материалов между встречами.', 20);
+  buy('nurlan', 'e6', 12);
+
+  // Сообщество
+  buy('aruzhan', 'g1', 20); buy('erlan', 'g1', 10); buy('timur-o', 'g1', 45, { expiresIn: -15 });
+  review('g1', 'aruzhan', 5, 'Разборы компаний в кругу единомышленников — лучшая часть недели.', 8);
+  buy('sabina', 'g2', 15); review('g2', 'sabina', 4, 'Хорошие обсуждения, но иногда не успеваю прочитать главу.', 5);
+  buy('daniyar', 'g3', 18); buy('madina', 'g3', 9);
+  review('g3', 'daniyar', 5, 'Алия отвечает по делу и с источниками. Чат без шума.', 7);
+  buy('student', 'g4', 4); buy('alibek', 'g4', 3);
+  const msg = (product: string, user: string, text: string, hoursAgo: number) =>
+    db.run('INSERT INTO product_messages (id, product_id, user_id, text, created_at) VALUES (?, ?, ?, ?, ?)', `m-${product}-${user}-${hoursAgo}`, product, user, text, new Date(now.getTime() - hoursAgo * 3600e3).toISOString());
+  msg('g3', 'aliya', 'Добро пожаловать! Пишите вопросы о рынке, отвечаю каждый день до 21:00.', 200);
+  msg('g3', 'daniyar', 'Как вы смотрите на компании, у которых выручка растёт, а свободный денежный поток падает?', 50);
+  msg('g3', 'aliya', 'Первым делом смотрю на оборотный капитал и капитальные затраты. Если рост «съедает» деньги временно, это нормально. Если так годами — тревожный знак.', 48);
+  msg('g3', 'madina', 'Спасибо, это как раз мой случай с одной компанией из портфеля.', 30);
+  msg('g1', 'timur', 'На этой неделе разбираем Kaspi.kz: прочитайте раздел о платёжном сегменте до среды.', 70);
+  msg('g1', 'aruzhan', 'Прочитала. Вопрос: как они считают выручку маркетплейса — валовым или чистым методом?', 20);
+  msg('g4', 'arman', 'Здесь можно задавать любые вопросы о первых шагах. Глупых вопросов нет.', 300);
+  msg('g4', 'student', 'С какой суммы имеет смысл начинать?', 26);
+  msg('g4', 'arman', 'С той, которую вы готовы не трогать несколько лет после того, как отложили резерв на 3–6 месяцев расходов.', 25);
+
+  // Идеи и аналитика
+  buy('daniyar', 'i1', 14); review('i1', 'daniyar', 5, 'Понятный чек-лист, применил к двум компаниям из портфеля.', 9);
+  buy('student', 'i2', 8); buy('aigerim', 'i2', 6); review('i2', 'aigerim', 4, 'Коротко и по делу. Пример с секторами особенно полезен.', 4);
+  buy('erlan', 'i3', 11);
+  buy('daniyar', 'i4', 16); buy('kamila', 'i4', 13); review('i4', 'kamila', 5, 'Наконец-то разобралась, почему прибыль и денежный поток — не одно и то же.', 10, 'Камила, спасибо! Рада, что пример помог.');
+
+  // Соцсети демо-экспертов
+  const socials: Record<string, object> = {
+    arman: { telegram: 'https://t.me/arman_invest_demo', youtube: 'https://youtube.com/@arman_invest_demo' },
+    aliya: { telegram: 'https://t.me/aliya_analysis_demo', linkedin: 'https://linkedin.com/in/aliya-demo', website: 'https://example.com/aliya' },
+    timur: { telegram: 'https://t.me/timur_risk_demo', instagram: 'https://instagram.com/timur_risk_demo' }
+  };
+  for (const [id, s] of Object.entries(socials)) db.run('UPDATE expert_profiles SET socials = ? WHERE user_id = ?', JSON.stringify(s), id);
 }

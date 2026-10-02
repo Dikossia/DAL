@@ -200,3 +200,19 @@ html[data-theme=dark] .flag-note{color:#e9c37f}
 .btn.small.danger{background:#b4513e}
 @media(max-width:1100px){.course-row .mod-actions{grid-column:2/-1}}
 @media(max-width:760px){.course-row .mod-actions{grid-column:auto}}
+/* Этап 2: продукты, расписание, соцсети */
+.type-group{font-size:12px;color:var(--muted);margin:18px 0 10px}.type-group:first-of-type{margin-top:0}
+.type-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.type-option{display:flex;gap:12px;align-items:flex-start;text-align:left;padding:14px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}.type-option:hover{border-color:var(--accent);background:var(--soft)}.type-option>span:last-child{display:grid;gap:4px}.type-option strong{font-size:12px}.type-option small{font-size:10px;color:var(--muted);line-height:1.6}
+.slot-form{display:grid;grid-template-columns:1fr 1fr 1.4fr auto;gap:12px;align-items:end;margin:16px 0 18px}
+.slot-manager{display:grid;gap:4px;border-top:1px solid var(--line)}
+.slot-day-row{display:grid;grid-template-columns:170px minmax(0,1fr);gap:14px;padding:11px 0;border-bottom:1px solid var(--line);align-items:center}.slot-day-name{font-size:11px;font-weight:700;text-transform:capitalize}
+.slot-chips{display:flex;flex-wrap:wrap;gap:8px}
+.slot-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;padding:3px 3px 3px 11px;border:1px solid var(--line);border-radius:6px;background:var(--surface);min-height:32px}.slot-chip b{font-variant-numeric:tabular-nums}.slot-chip .icon-button{width:26px;height:26px}.slot-chip .icon-button svg{width:13px;height:13px}
+.slot-chip.booked{background:var(--soft);border-color:color-mix(in srgb,var(--accent) 30%,var(--line));padding-right:10px}.slot-chip.booked svg{width:13px;height:13px;color:var(--accent)}.slot-chip .text-link{font-weight:400;margin-left:4px}
+.facts{display:grid;gap:0;margin:0}.facts>div{display:grid;grid-template-columns:180px minmax(0,1fr);gap:14px;padding:11px 0;border-bottom:1px solid var(--line);font-size:12px}.facts dt{color:var(--muted)}.facts dd{margin:0;overflow-wrap:anywhere}
+.text-link.plain{font-weight:400;color:inherit}.text-link.plain:hover{color:var(--accent)}
+.mode-ratings>div>.tiny-meta{font-size:9px}
+.readable.mod-text h3{font-size:15px;margin:18px 0 6px;color:var(--text)}
+.field-error{font-size:10px;color:#ab5442}
+@media(max-width:760px){.slot-form{grid-template-columns:1fr 1fr}.slot-form .btn{grid-column:1/-1}.slot-day-row,.facts>div{grid-template-columns:minmax(0,1fr);gap:6px}}

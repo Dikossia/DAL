@@ -35,7 +35,7 @@ test('имя эксперта меняется только после одоб�
 test('обзор и доход эксперта считаются из реальных покупок', async () => {
   const ov = await t.api('GET', '/studio/overview', { token: aliya });
   assert.equal(ov.body.verified, true);
-  assert.ok(ov.body.students >= 15);
+  assert.ok(ov.body.students >= 10, 'ученики считаются без повторов');
   assert.ok(ov.body.attention.some((a: any) => a.type === 'draft'));
   assert.ok(ov.body.attention.some((a: any) => a.type === 'review'));
   const inc = await t.api('GET', '/studio/income', { token: aliya });

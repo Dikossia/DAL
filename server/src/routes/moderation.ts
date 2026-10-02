@@ -4,6 +4,7 @@ import { parse, str, num, oneOf } from '../validate.ts';
 import { nowIso, localDate } from '../util.ts';
 import { courseCard, checklist, lessonsOf } from '../courses.ts';
 import { forecastView } from './studio-forecasts.ts';
+import { productCard, productChecklist } from '../products.ts';
 
 const M: ['moderator'] = ['moderator'];
 
@@ -15,10 +16,17 @@ export function registerModeration(app: App) {
     method: 'GET', path: '/moderation/queue', group: 'Модерация', summary: 'Всё, что ждёт решения модератора.', auth: M,
     handler: () => ({
       courses: db.all(`SELECT * FROM courses WHERE status = 'review' ORDER BY submitted_at`).map(c => ({ ...courseCard(db, c), submittedAt: c.submitted_at, checklist: checklist(c, lessonsOf(db, c.id)) })),
-      reports: db.all(
-        `SELECT rr.id, rr.reason, rr.created_at AS createdAt, r.id AS reviewId, r.text, r.rating, c.title AS courseTitle, u.name AS reportedBy
-         FROM review_reports rr JOIN reviews r ON r.id = rr.review_id JOIN courses c ON c.id = r.course_id JOIN users u ON u.id = rr.reporter_id
-         WHERE rr.status = 'pending' ORDER BY rr.created_at`),
+      products: db.all(`SELECT * FROM products WHERE status = 'review' ORDER BY submitted_at`).map(p => ({ ...productCard(db, p), submittedAt: p.submitted_at, checklist: productChecklist(db, p) })),
+      reports: [
+        ...db.all(
+          `SELECT rr.id, rr.reason, rr.created_at AS createdAt, r.id AS reviewId, r.text, r.rating, c.title AS courseTitle, u.name AS reportedBy
+           FROM review_reports rr JOIN reviews r ON r.id = rr.review_id JOIN courses c ON c.id = r.course_id JOIN users u ON u.id = rr.reporter_id
+           WHERE rr.status = 'pending'`),
+        ...db.all(
+          `SELECT rr.id, rr.reason, rr.created_at AS createdAt, r.id AS reviewId, r.text, r.rating, p.title AS courseTitle, u.name AS reportedBy
+           FROM product_review_reports rr JOIN product_reviews r ON r.id = rr.review_id JOIN products p ON p.id = r.product_id JOIN users u ON u.id = rr.reporter_id
+           WHERE rr.status = 'pending'`)
+      ].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
       profileRequests: db.all(
         `SELECT pr.id, pr.field, pr.value, pr.created_at AS createdAt, u.id AS expertId, u.name AS currentName, p.experience AS currentExperience
          FROM profile_requests pr JOIN users u ON u.id = pr.expert_id JOIN expert_profiles p ON p.user_id = u.id WHERE pr.status = 'pending' ORDER BY pr.created_at`),
@@ -57,13 +65,14 @@ export function registerModeration(app: App) {
     method: 'POST', path: '/moderation/reports/:id/resolve', group: 'Модерация', summary: 'Решение по жалобе на отзыв: оставить отзыв или скрыть его.', auth: M,
     body: '{ action: "keep" | "remove" }',
     handler: ({ user, params, body }) => {
-      const rr = db.get(`SELECT * FROM review_reports WHERE id = ?`, params.id);
+      let rr = db.get(`SELECT * FROM review_reports WHERE id = ?`, params.id), reports = 'review_reports', reviews = 'reviews';
+      if (!rr) { rr = db.get(`SELECT * FROM product_review_reports WHERE id = ?`, params.id); reports = 'product_review_reports'; reviews = 'product_reviews'; }
       if (!rr) throw notFound('Жалоба не найдена');
       if (rr.status !== 'pending') throw conflict('already_decided', 'По жалобе уже есть решение');
       const b = parse<{ action: 'keep' | 'remove' }>(body, { action: oneOf(['keep', 'remove'] as const) });
       db.tx(() => {
-        db.run('UPDATE review_reports SET status = ?, decided_at = ?, decided_by = ? WHERE id = ?', b.action === 'keep' ? 'kept' : 'removed', nowIso(), user!.id, rr.id);
-        if (b.action === 'remove') db.run('UPDATE reviews SET hidden = 1 WHERE id = ?', rr.review_id);
+        db.run(`UPDATE ${reports} SET status = ?, decided_at = ?, decided_by = ? WHERE id = ?`, b.action === 'keep' ? 'kept' : 'removed', nowIso(), user!.id, rr.id);
+        if (b.action === 'remove') db.run(`UPDATE ${reviews} SET hidden = 1 WHERE id = ?`, rr.review_id);
       });
       return { id: rr.id, status: b.action === 'keep' ? 'kept' : 'removed' };
     }

@@ -4,6 +4,7 @@ import type { DB, Row } from './db.ts';
 import type { App } from './app.ts';
 import { HttpError, notFound, conflict, forbidden, type User } from './http.ts';
 import { RULES, CATEGORY_NAMES, COVER_LIBRARY } from './rules.ts';
+import { expertBrief } from './experts.ts';
 
 export const isLive = (c: Row) => c.status === 'published' || c.status === 'hidden';
 
@@ -115,7 +116,7 @@ export function courseStats(db: DB, courseId: string) {
 // Карточка курса для каталога и списков.
 export function courseCard(db: DB, c: Row) {
   const lessons = lessonsOf(db, c.id);
-  const expert = db.get('SELECT u.id, u.name, p.avatar FROM users u LEFT JOIN expert_profiles p ON p.user_id = u.id WHERE u.id = ?', c.expert_id)!;
+  const expert = expertBrief(db, c.expert_id);
   const stats = courseStats(db, c.id);
   return {
     id: c.id,
@@ -126,7 +127,7 @@ export function courseCard(db: DB, c: Row) {
     price: c.price,
     coverUrl: coverUrl(c.cover),
     status: c.status,
-    expert: { id: expert.id, name: expert.name, avatarUrl: expert.avatar ? `/assets/${expert.avatar}.jpg` : null },
+    expert,
     lessons: lessons.length,
     duration: Math.round(lessons.reduce((a, l) => a + (l.duration || 0), 0)),
     freeLessons: lessons.filter(l => l.is_free === 1).length,

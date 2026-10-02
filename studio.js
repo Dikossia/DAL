@@ -27,13 +27,35 @@
   const CATEGORIES = [['beginner', 'Для новичков'], ['advanced', 'Для продвинутых'], ['workshops', 'Вебинары и практикумы']];
   const COVERS = ['foundations', 'analytics', 'workshop'];
   const MAX_FREE = 2;
+  // Продукты режимов «Работа с экспертом», «Сообщество», «Идеи и аналитика».
+  const MODE_NAMES = { experts: 'Работа с экспертом', community: 'Сообщество', ideas: 'Идеи и аналитика' };
+  const PTYPES = {
+    consultation: { mode: 'experts', kind: 'sessions', name: 'Разовая консультация', icon: 'messages-square', text: 'Одна встреча по видеосвязи. Ученик выбирает время из вашего расписания.' },
+    personal: { mode: 'experts', kind: 'sessions', name: 'Индивидуальные занятия', icon: 'user-round-check', text: 'Пакет встреч в удобном ученику темпе.' },
+    mentorship: { mode: 'experts', kind: 'sessions', name: 'Длительное сопровождение', icon: 'route', text: 'Большой пакет встреч на несколько месяцев.' },
+    clubs: { mode: 'community', kind: 'subscription', name: 'Закрытый клуб', icon: 'users-round', text: 'Регулярные встречи и чат участников. Подписка на 30 дней.' },
+    chats: { mode: 'community', kind: 'subscription', name: 'Чат с экспертом', icon: 'message-circle', text: 'Общий чат с вами и участниками. Подписка на 30 дней.' },
+    investment: { mode: 'ideas', kind: 'material', name: 'Инвестиционная идея', icon: 'lightbulb', text: 'Текст с гипотезой и рисками. Бесплатно или за плату.' },
+    reviews: { mode: 'ideas', kind: 'material', name: 'Обзор рынка или компании', icon: 'file-chart-column', text: 'Подробный разбор. До покупки ученик видит начало.' }
+  };
+  const SOCIAL_FIELDS = [['telegram', 'Telegram', '@nickname или t.me/…'], ['instagram', 'Instagram', '@nickname'], ['youtube', 'YouTube', '@channel или ссылка'], ['linkedin', 'LinkedIn', 'linkedin.com/in/…'], ['website', 'Сайт', 'example.kz']];
+  const whenFmt = new Intl.DateTimeFormat('ru-RU', { weekday: 'short', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+  const fmtWhen = iso => iso ? whenFmt.format(new Date(iso)) : '';
+  const dayFmt = new Intl.DateTimeFormat('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
+  const hourFmt = new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  const shortFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const richText = text => String(text || '').split(/\n{2,}/).map(block => {
+    const lines = block.split('\n');
+    if (lines[0].startsWith('## ')) return `<h3>${esc(lines[0].slice(3))}</h3>${lines.length > 1 ? `<p>${esc(lines.slice(1).join(' '))}</p>` : ''}`;
+    return `<p>${esc(block).replace(/\n/g, '<br>')}</p>`;
+  }).join('');
 
   // ---------- Состояние ----------
   const PREFS = 'dal-studio-prefs';
   let prefs = { theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' };
   try { prefs = { ...prefs, ...JSON.parse(localStorage.getItem(PREFS) || '{}') }; } catch (_) { /* по умолчанию */ }
   const savePrefs = () => { try { localStorage.setItem(PREFS, JSON.stringify(prefs)); } catch (_) { /* недоступно */ } };
-  let me = null, profile = null, current = null, unanswered = 0;
+  let me = null, profile = null, current = null, prod = null, unanswered = 0, productFilter = 'all', chatTimer = 0, chatLast = '';
   let courseFilter = 'all', fcFilter = 'all', rvFilter = 'all', stFilter = 'all', editingReply = '', fcDraft = {};
   const uploads = {};
   const main = $('#main'), modal = $('#modal');
@@ -43,12 +65,14 @@
   const courseChip = c => chip(...COURSE_STATUS[c.status]);
   const FC_STATUS = { active: ['Открыт', 'active', 'clock-3'], success: ['Условие выполнено', 'live', 'circle-check'], miss: ['Не выполнено', 'miss', 'x'] };
   const LEVELS = { yes: ['Можно', 'live', 'check'], review: ['После модерации', 'review', 'hourglass'], no: ['Нельзя', 'miss', 'ban'], rule: ['Правило платформы', 'hidden', 'info'] };
-  const rating = v => v == null ? '<span class="rating">—</span>' : `<span class="rating">${icon('star')}${num(v)}</span>`;
+  const STAR = '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>';
+  const rating = v => v == null ? '<span class="rating">—</span>' : `<span class="rating" title="${num(v)} из 5"><span class="star-meter" style="--fill:${Math.max(0, Math.min(100, v / 5 * 100))}%" aria-hidden="true"><svg viewBox="0 0 24 24" class="star-empty">${STAR}</svg><span class="star-fill"><svg viewBox="0 0 24 24">${STAR}</svg></span></span>${Number(v).toFixed(1).replace('.', ',')}</span>`;
   const breadcrumb = items => `<nav class="breadcrumb" aria-label="Навигационная цепочка">${items.map(([n, h], i) => `${i ? icon('chevron-right') : ''}${h ? `<a href="${h}">${esc(n)}</a>` : `<span>${esc(n)}</span>`}`).join('')}</nav>`;
   const coverHTML = (url, cls = '') => url ? `<img src="${esc(url)}" alt="" class="${cls}" loading="lazy">` : `<span class="cover-empty ${cls}">${icon('image')}</span>`;
   const footer = () => `<footer class="page-footer"><span><span class="footer-logo">Dal.</span> &nbsp; Studio · ${me?.role === 'moderator' ? 'модерация' : 'кабинет эксперта'}</span><span>Данные хранятся на сервере на вашем компьютере.</span></footer>`;
   const empty = (title, text, name = 'search', action = '') => `<div class="empty">${icon(name)}<h2>${title}</h2><p>${text}</p>${action}</div>`;
-  const linkFor = apiPath => apiPath.startsWith('/studio/courses/') ? '#course/' + apiPath.split('/').pop() : '#' + apiPath.split('/').pop();
+  const linkFor = apiPath => apiPath.startsWith('/studio/courses/') ? '#course/' + apiPath.split('/').pop() : apiPath.startsWith('/studio/products/') ? '#product/' + apiPath.split('/').pop() : '#' + apiPath.split('/').pop();
+  const productChip = p => chip(...COURSE_STATUS[p.status]);
   const allLessons = c => c.modules.flatMap(m => m.lessons);
 
   // ---------- Оформление ----------
@@ -62,10 +86,10 @@
   }
   function navItems() {
     if (me?.role === 'moderator') return [['moderation', 'shield-check', 'Модерация'], ['rights', 'scale', 'Права экспертов']];
-    return [['overview', 'layout-dashboard', 'Обзор'], ['courses', 'clapperboard', 'Курсы'], ['forecasts', 'radio', 'Прогнозы'], ['students', 'users-round', 'Ученики'], ['reviews', 'message-square', 'Отзывы'], ['income', 'wallet', 'Доход'], ['rights', 'shield-check', 'Права']];
+    return [['overview', 'layout-dashboard', 'Обзор'], ['courses', 'clapperboard', 'Курсы'], ['products', 'calendar-clock', 'Встречи, клубы, идеи'], ['forecasts', 'radio', 'Прогнозы'], ['students', 'users-round', 'Ученики'], ['reviews', 'message-square', 'Отзывы'], ['income', 'wallet', 'Доход'], ['rights', 'shield-check', 'Права']];
   }
   function renderNav(page) {
-    const cur = { course: 'courses', 'forecast-new': 'forecasts', 'review-course': 'moderation' }[page] || page;
+    const cur = { course: 'courses', product: 'products', 'forecast-new': 'forecasts', 'review-course': 'moderation', 'review-product': 'moderation' }[page] || page;
     $('#studioNav').innerHTML = navItems().map(([id, ic, t]) => `<a href="#${id}" class="${cur === id ? 'active' : ''}" ${cur === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${t}</span>${id === 'reviews' && unanswered ? `<span class="nav-count">${unanswered}</span>` : ''}</a>`).join('');
   }
 
@@ -79,14 +103,16 @@
     const sales = `${m.sales} ${plural(m.sales, 'продажа', 'продажи', 'продаж')}`;
     const ICON = { draft: 'pencil', rejected: 'undo-2', review: 'hourglass', forecast: 'clock-3', reviews: 'message-square' };
     return `<div class="page-topline"><span class="eyebrow">КАБИНЕТ ЭКСПЕРТА</span>${o.verified ? chip('Профиль подтверждён', 'live', 'badge-check') : chip('Ждёт подтверждения', 'review', 'hourglass')}</div>
-      <div class="heading-row"><h1>${hello}, ${esc(me.name.split(' ')[0])}</h1><div class="head-actions"><button class="btn" data-action="new-course">${icon('plus')}Новый курс</button><a class="btn secondary" href="#forecast-new">${icon('radio')}Новый прогноз</a></div></div>
-      ${o.verified ? '' : `<div class="notice lock-note">${icon('info')}Курсы можно готовить уже сейчас. Отправлять их на модерацию и публиковать прогнозы можно после того, как модератор подтвердит вашу личность.</div>`}
+      <div class="heading-row"><h1>${hello}, ${esc(me.name.split(' ')[0])}</h1><div class="head-actions"><button class="btn" data-action="new-course">${icon('plus')}Новый курс</button><button class="btn secondary" data-action="new-product">${icon('calendar-plus')}Встреча, клуб или идея</button><a class="btn secondary" href="#forecast-new">${icon('radio')}Новый прогноз</a></div></div>
+      ${o.verified ? '' : `<div class="notice lock-note">${icon('info')}Курсы и продукты можно готовить уже сейчас. Отправлять их на модерацию и публиковать прогнозы можно после того, как модератор подтвердит вашу личность.</div>`}
       <div class="kpis">
-        <div class="kpi"><small>Учеников</small><strong>${nf.format(o.students)}</strong><span>в ${o.liveCourses} ${plural(o.liveCourses, 'курсе', 'курсах', 'курсах')}</span></div>
+        <div class="kpi"><small>Учеников</small><strong>${nf.format(o.students)}</strong><span>в ${o.liveCourses} ${plural(o.liveCourses, 'курсе или продукте', 'курсах и продуктах', 'курсах и продуктах')}</span></div>
         <div class="kpi"><small>Продажи · ${m.label.toLowerCase()}</small><strong>${tenge(m.gross)}</strong><span class="${growth == null ? '' : growth >= 0 ? 'up' : 'down'}">${growth == null ? sales : `${sales} · ${growth >= 0 ? '+' : ''}${growth}% к прошлому месяцу`}</span></div>
-        <div class="kpi"><small>Оценка курсов</small><strong>${o.rating ? num(o.rating) : '—'}</strong><span>${o.reviews} ${plural(o.reviews, 'отзыв', 'отзыва', 'отзывов')}</span></div>
+        <div class="kpi"><small>Общий рейтинг</small><strong>${o.rating ? Number(o.rating).toFixed(1).replace('.', ',') : '—'}</strong><span>${o.reviews} ${plural(o.reviews, 'отзыв', 'отзыва', 'отзывов')} · среднее по направлениям</span></div>
         <div class="kpi"><small>Прогнозы</small><strong>${o.forecasts.successRate == null ? '—' : String(o.forecasts.successRate).replace('.', ',') + '%'}</strong><span>${o.forecasts.success} из ${o.forecasts.done} выполнено</span></div>
       </div>
+      <div class="mode-ratings">${[['courses', 'Курсы'], ...Object.entries(MODE_NAMES)].map(([k, n]) => `<div><span>${n}</span>${o.ratings[k].value == null ? '<span class="rating muted-rating">Нет оценок</span>' : `${rating(o.ratings[k].value)}<small class="tiny-meta">${o.ratings[k].reviews} ${plural(o.ratings[k].reviews, 'отзыв', 'отзыва', 'отзывов')}</small>`}</div>`).join('')}</div>
+      ${o.bookings.length ? `<section><div class="section-head"><h2>Ближайшие встречи</h2><span class="tiny-meta">на 14 дней</span></div><div class="attention">${o.bookings.slice(0, 6).map(b => `<a class="attention-row" href="#product/${b.productId}"><span class="attention-icon">${icon('calendar-check')}</span><span><strong>${esc(fmtWhen(b.startsAt))} · ${esc(b.student)}</strong><small>${esc(b.title)} · ${b.durationMin} мин</small></span>${icon('chevron-right')}</a>`).join('')}</div></section>` : ''}
       <div class="overview-grid"><section><div class="section-head"><h2>Требует внимания</h2></div>${o.attention.length ? `<div class="attention">${o.attention.map(a => `<a class="attention-row" href="${linkFor(a.link)}"><span class="attention-icon">${icon(ICON[a.type] || 'info')}</span><span><strong>${esc(a.title)}</strong><small>${esc(a.detail)}</small></span>${icon('chevron-right')}</a>`).join('')}</div>` : '<p class="subtitle">Всё в порядке.</p>'}</section>
       <section><div class="section-head"><h2>Недавние курсы</h2><a class="text-link" href="#courses">Все курсы ${icon('arrow-right')}</a></div>${courses.length ? `<div class="mini-courses">${courses.slice(0, 3).map(c => `<a class="mini-course" href="#course/${c.id}">${coverHTML(c.coverUrl)}<span><strong>${esc(c.title || 'Новый курс')}</strong>${courseChip(c)}</span></a>`).join('')}</div>` : '<p class="subtitle">Курсов пока нет. Создайте первый.</p>'}</section></div>`;
   }
@@ -243,6 +269,110 @@
     $('#modal video').addEventListener('error', () => { $('#playerNote').textContent = 'Браузер не может воспроизвести этот файл. Попробуйте MP4 с кодеком H.264.'; }, { once: true });
   }
 
+  // ---------- Встречи, клубы, идеи ----------
+  async function productsView() {
+    const all = await api.get('/studio/products');
+    const list = all.filter(p => productFilter === 'all' || p.mode === productFilter);
+    const filters = [['all', 'Все'], ...Object.entries(MODE_NAMES)];
+    return `<div class="heading-row"><h1>Встречи, клубы, идеи</h1><button class="btn" data-action="new-product">${icon('plus')}Создать</button></div><p class="subtitle">Консультации и сопровождение по расписанию, клубы и чаты по подписке, инвестиционные идеи и обзоры. Каждый продукт проходит модерацию.</p>
+      <div class="tabs" role="tablist" aria-label="Направление">${filters.map(([id, t]) => `<button role="tab" aria-selected="${productFilter === id}" class="tab ${productFilter === id ? 'active' : ''}" data-action="product-filter" data-id="${id}">${t} <span class="tab-count">${id === 'all' ? all.length : all.filter(p => p.mode === id).length}</span></button>`).join('')}</div>
+      ${list.length ? `<div class="course-list">${list.map(p => `<article class="course-row"><a class="course-cover" href="#product/${p.id}" tabindex="-1" aria-hidden="true">${coverHTML(p.coverUrl)}</a><div class="course-info"><div class="course-meta">${productChip(p)}<span>${esc(p.typeName)}</span>${p.status === 'draft' && p.checklistLeft ? `<span>До модерации: ${p.checklistLeft} ${plural(p.checklistLeft, 'пункт', 'пункта', 'пунктов')}</span>` : ''}</div><h2><a href="#product/${p.id}">${esc(p.title || 'Новый продукт')}</a></h2><p>${esc(p.meta)}${p.nextSlot ? ` · ближайшее свободное время ${esc(shortFmt.format(new Date(p.nextSlot)))}` : ''} · обновлён ${fmtDate(p.updatedAt)}</p></div><dl class="course-stats"><div><dt>${p.productKind === 'subscription' ? 'Участников' : 'Покупок'}</dt><dd>${nf.format(p.buyers)}</dd></div><div><dt>Выручка</dt><dd>${tenge(p.revenue)}</dd></div><div><dt>Цена</dt><dd>${money(p.price)}</dd></div></dl><a class="btn secondary" href="#product/${p.id}">${p.status === 'draft' ? 'Продолжить' : 'Открыть'}${icon('arrow-right')}</a></article>`).join('')}</div>` : empty('Здесь пока пусто', 'Создайте консультацию, клуб или инвестиционную идею.', 'calendar-clock', `<button class="btn" data-action="new-product">${icon('plus')}Создать</button>`)}`;
+  }
+  function newProductDialog(mode) {
+    const groups = Object.entries(MODE_NAMES).filter(([m]) => !mode || m === mode);
+    openDialog('Что создаём?', `${groups.map(([m, n]) => `<h3 class="type-group">${n}</h3><div class="type-grid">${Object.entries(PTYPES).filter(([, t]) => t.mode === m).map(([id, t]) => `<button class="type-option" data-action="create-product" data-id="${id}"><span class="attention-icon">${icon(t.icon)}</span><span><strong>${t.name}</strong><small>${t.text}</small></span></button>`).join('')}</div>`).join('')}<p class="fine-print">Курсы с видеоуроками создаются в разделе «Курсы».</p>`, 'wide');
+  }
+
+  const slotDays = slots => { const days = new Map(); for (const s of slots) { const k = new Date(s.startsAt).toDateString(); if (!days.has(k)) days.set(k, []); days.get(k).push(s); } return [...days.values()]; };
+  function scheduleHTML() {
+    const p = prod, future = p.slots.filter(s => new Date(s.startsAt) > new Date(Date.now() - 3 * 3600e3));
+    const booked = future.filter(s => s.bookedBy).length;
+    const tomorrow = addDays(1);
+    return `<section class="editor-section" id="schedule"><div class="section-title-row"><h2>Расписание</h2><span class="tiny-meta">${future.length - booked} ${plural(future.length - booked, 'свободное окно', 'свободных окна', 'свободных окон')} · ${booked} ${plural(booked, 'запись', 'записи', 'записей')}</span></div>
+      <p class="field-hint">Добавьте время, когда вы готовы провести встречу. Ученик выберет окно после покупки. Время — по часовому поясу вашего компьютера.</p>
+      <form id="slotForm" class="slot-form"><label class="form-label">Дата<input type="date" name="date" min="${tomorrow}" max="${addDays(180)}" value="${tomorrow}" required></label><label class="form-label">Время<input type="time" name="time" value="12:00" step="900" required></label><label class="form-label">Повторить<select name="repeat"><option value="1">Только этот день</option><option value="4">Каждую неделю, 4 раза</option><option value="8">Каждую неделю, 8 раз</option><option value="12">Каждую неделю, 12 раз</option></select></label><button class="btn secondary" type="submit">${icon('plus')}Добавить</button></form>
+      ${future.length ? `<div class="slot-manager">${slotDays(future).map(list => `<div class="slot-day-row"><span class="slot-day-name">${esc(dayFmt.format(new Date(list[0].startsAt)))}</span><div class="slot-chips">${list.map(s => s.bookedBy
+        ? `<span class="slot-chip booked">${icon('user-round')}<b>${hourFmt.format(new Date(s.startsAt))}</b>${esc(s.bookedBy)}<button type="button" class="text-link" data-action="cancel-booking" data-id="${s.id}" data-when="${esc(fmtWhen(s.startsAt))}" data-who="${esc(s.bookedBy)}">Отменить</button></span>`
+        : `<span class="slot-chip"><b>${hourFmt.format(new Date(s.startsAt))}</b><button type="button" class="icon-button" data-action="delete-slot" data-id="${s.id}" title="Убрать окно" aria-label="Убрать окно ${esc(fmtWhen(s.startsAt))}">${icon('x')}</button></span>`).join('')}</div></div>`).join('')}</div>` : '<p class="subtitle">Свободного времени пока нет.</p>'}</section>`;
+  }
+  function productPanelHTML() {
+    const p = prod, ready = p.checklist.every(x => x.ok);
+    const checklist = `<ul class="checklist">${p.checklist.map(x => `<li class="${x.ok ? 'ok' : ''}">${icon(x.ok ? 'circle-check' : 'circle')}${esc(x.label)}</li>`).join('')}</ul>`;
+    const stats = `<dl class="panel-stats"><div><dt>${p.productKind === 'subscription' ? 'Участников' : 'Покупок'}</dt><dd>${nf.format(p.buyers)}</dd></div><div><dt>Выручка</dt><dd>${tenge(p.revenue)}</dd></div><div><dt>Оценка</dt><dd>${p.reviews ? rating(p.rating) : '—'}</dd></div></dl>`;
+    let body = '';
+    if (p.status === 'draft') body = `${p.moderationNote ? `<div class="notice rejected-note">${icon('undo-2')}<span><b>Модерация вернула продукт:</b> ${esc(p.moderationNote)}</span></div>` : ''}${checklist}<button class="btn wide" data-action="product-submit" ${ready && profile?.verified ? '' : 'disabled'}>${icon('send')}Отправить на модерацию</button>${!profile?.verified ? '<p class="fine-print">Отправка станет доступна после подтверждения вашей личности модератором.</p>' : ready ? '' : '<p class="fine-print">Выполните все пункты, чтобы отправить продукт.</p>'}`;
+    if (p.status === 'review') body = `${checklist}<div class="notice">${icon('hourglass')} На модерации с ${fmtDate(p.submittedAt)}. Расписание можно пополнять и сейчас.</div><button class="btn secondary wide" data-action="product-withdraw">Отозвать с модерации</button>`;
+    if (p.status === 'published') body = `${stats}<a class="btn ghost wide" href="/#product/${p.id}" target="_blank" rel="noopener">${icon('external-link')}Открыть в каталоге</a><button class="btn secondary wide" data-action="product-hide">${icon('eye-off')}Скрыть из каталога</button>`;
+    if (p.status === 'hidden') body = `${stats}<div class="notice">Новые ученики продукт не видят. Купившие сохраняют доступ.</div><button class="btn wide" data-action="product-unhide">${icon('eye')}Вернуть в каталог</button>`;
+    const chat = p.productKind === 'subscription' && p.status !== 'draft' ? `<button class="btn ghost wide" data-action="expert-chat" data-id="${p.id}">${icon('messages-square')}Чат участников</button>` : '';
+    const del = p.rules.canDelete ? `<button class="text-link danger" data-action="delete-product">${icon('trash-2')}Удалить продукт</button>` : p.buyers ? `<p class="locked-line">${icon('lock')}Удалить нельзя: продукт уже покупали. Можно скрыть.</p>` : '';
+    return `<div class="panel-card"><span class="tiny-meta">Статус</span><div class="panel-status">${productChip(p)}</div><p class="save-state" id="saveState" aria-live="polite">Изменения сохраняются автоматически</p>${body}${chat}${del}</div>
+      <div class="panel-card subtle"><h3>Правила</h3><ul class="plain-list">${p.productKind === 'sessions' ? '<li>Ученик отменяет запись не позже чем за 24 часа, вы — в любое время</li><li>Занятое окно нельзя удалить, только отменить запись</li><li>Возврат — 14 дней, пока не назначена ни одна встреча</li>' : p.productKind === 'subscription' ? '<li>Подписка на выбранный срок, продление повторной оплатой</li><li>Чат видят только участники с действующей подпиской</li><li>Подписка не возвращается</li>' : '<li>До покупки ученик видит начало текста</li><li>Бесплатный материал открыт всем</li><li>Без обещаний доходности и персональных советов</li>'}</ul><a class="text-link" href="#rights">Все права эксперта ${icon('arrow-right')}</a></div>`;
+  }
+  function productEditorHTML() {
+    const p = prod, t = PTYPES[p.type], lock = !p.rules.canEdit, live = p.status === 'published' || p.status === 'hidden';
+    const custom = p.coverUrl && p.coverUrl.startsWith('/media/');
+    let specific = '';
+    if (t.kind === 'sessions') specific = `<section class="editor-section"><h2>Встречи</h2><div class="field-row three"><label class="form-label">Длительность встречи<select data-pfield="durationMin">${[30, 45, 60, 90, 120].map(m => `<option value="${m}" ${p.durationMin === m ? 'selected' : ''}>${m} мин</option>`).join('')}</select></label>${p.type === 'consultation' ? '<div class="form-label">Встреч в покупке<div class="locked-field"><span>Одна</span></div></div>' : `<label class="form-label">Встреч в пакете<input type="number" data-pfield="sessions" min="1" max="52" value="${p.sessions ?? ''}" ${p.rules.canChangePackage ? '' : 'disabled'}><span class="field-hint">${p.rules.canChangePackage ? 'Сколько встреч получает ученик' : 'После публикации размер пакета не меняется'}</span></label>`}<label class="form-label">Ссылка на видеозвонок<input type="url" data-pfield="meetingUrl" maxlength="300" value="${esc(p.meetingUrl || '')}" placeholder="https://meet.google.com/…"><span class="field-hint">Ученик увидит ссылку только после записи</span></label></div></section>`;
+    if (t.kind === 'subscription') specific = `<section class="editor-section"><h2>${p.type === 'clubs' ? 'Клуб' : 'Чат'}</h2><div class="field-row"><label class="form-label">Срок подписки, дней<input type="number" data-pfield="periodDays" min="7" max="365" value="${p.periodDays ?? 30}"><span class="field-hint">Продление прибавляет такой же срок</span></label>${p.type === 'clubs' ? `<label class="form-label">Ссылка на встречи клуба<input type="url" data-pfield="meetingUrl" maxlength="300" value="${esc(p.meetingUrl || '')}" placeholder="https://zoom.us/j/…"><span class="field-hint">Видят только участники с действующей подпиской</span></label>` : ''}</div><label class="form-label">${p.type === 'clubs' ? 'Расписание встреч' : 'Когда вы отвечаете в чате'}<input type="text" data-pfield="scheduleNote" maxlength="300" value="${esc(p.scheduleNote || '')}" placeholder="${p.type === 'clubs' ? 'Каждый четверг в 19:00 по Астане' : 'По будням с 10:00 до 18:00'}"></label></section>`;
+    if (t.kind === 'material') specific = `<section class="editor-section"><h2>Текст</h2><label class="form-label">${p.type === 'reviews' ? 'Обзор' : 'Идея'} целиком<textarea data-pfield="content" rows="16" maxlength="20000" placeholder="Гипотеза, на чём она основана, главные риски. Подзаголовок — строка, которая начинается с ## ">${esc(p.content)}</textarea><span class="field-hint" id="contentCounter">${p.content.length} символов · минимум 300 · до покупки видно первые 400 · подзаголовок начинается с «## »</span></label></section>`;
+    return `${breadcrumb([['Встречи, клубы, идеи', '#products'], [p.title || 'Новый продукт']])}
+      <div class="heading-row"><h1 id="productHead">${esc(p.title || 'Новый продукт')}</h1>${productChip(p)}</div><p class="subtitle">${esc(p.modeName)} · ${esc(p.typeName)}</p>
+      ${lock ? `<div class="notice lock-note">${icon('lock')}Продукт на модерации, редактирование закрыто. Отзовите его с модерации, чтобы внести изменения.</div>` : ''}
+      ${live ? `<div class="notice">${icon('info')}Продукт уже продаётся. Новая цена действует только для новых покупок.</div>` : ''}
+      <div class="editor"><div class="editor-main"><fieldset class="editor-fieldset" ${lock ? 'disabled' : ''}>
+        <section class="editor-section"><h2>Основное</h2>
+          <label class="form-label">Название<input type="text" id="p-title" data-pfield="title" maxlength="90" value="${esc(p.title)}" placeholder="${t.kind === 'sessions' ? 'Например: Разбор вашего портфеля' : t.kind === 'subscription' ? 'Например: Клуб долгосрочных инвесторов' : 'Например: Почему я смотрю на денежный поток'}"></label>
+          <label class="form-label">Цена, ₸<input type="number" id="p-price" data-pfield="price" min="0" step="100" inputmode="numeric" value="${p.price ?? ''}" placeholder="15 000"><span class="field-hint">${t.kind === 'subscription' ? 'За срок подписки. ' : t.kind === 'sessions' && p.type !== 'consultation' ? 'За весь пакет. ' : ''}0 — бесплатно.</span></label>
+          <label class="form-label">Описание<textarea id="p-description" data-pfield="description" rows="5" maxlength="1500" placeholder="Кому подойдёт и что ученик получит">${esc(p.description)}</textarea><span class="field-hint" id="pDescCounter">${p.description.length} / 1500 · минимум 80</span></label>
+          <div class="form-label">Обложка<div class="cover-picker">${COVERS.map(k => `<button type="button" class="cover-option ${p.coverUrl === `/assets/${k}.jpg` ? 'active' : ''}" data-action="product-cover" data-id="${k}" aria-pressed="${p.coverUrl === `/assets/${k}.jpg`}" aria-label="Обложка из библиотеки"><img src="assets/${k}.jpg" alt=""></button>`).join('')}${custom ? `<span class="cover-option active"><img src="${esc(p.coverUrl)}" alt="Своя обложка"></span>` : ''}<label class="cover-option cover-upload">${icon('image')}<span>Загрузить</span><input type="file" id="productCoverInput" class="sr-only" accept="image/jpeg,image/png,image/webp"></label></div></div>
+        </section>${specific}
+      </fieldset>${t.kind === 'sessions' ? scheduleHTML() : ''}</div><aside class="editor-panel" id="productPanel">${productPanelHTML()}</aside></div>`;
+  }
+  async function productEditor(id) {
+    try { prod = await api.get(`/studio/products/${id}`); }
+    catch (e) { if (e.status === 404) return empty('Продукт не найден', 'Возможно, его удалили.', 'calendar-clock', `<a class="btn secondary" href="#products">К списку</a>`); throw e; }
+    return productEditorHTML();
+  }
+  const rerenderProduct = () => { const y = scrollY; $('.page', main).innerHTML = productEditorHTML() + footer(); icons(); scrollTo(0, y); };
+  function refreshProductPanel() { const p = $('#productPanel'); if (p) { p.innerHTML = productPanelHTML(); icons(); } }
+  const productAction = (path, msg, button) => guard(async () => { prod = await api.post(`/studio/products/${prod.id}/${path}`); rerenderProduct(); toast(msg); }, button);
+  function productCoverFromFile(file) {
+    if (!prod || !file) return;
+    if (!/^image\//.test(file.type)) { toast('Нужна картинка JPG, PNG или WEBP.'); return; }
+    const img = new Image(), u = URL.createObjectURL(file);
+    img.onload = () => {
+      const w = Math.min(1280, img.width), h = Math.round(img.height * w / img.width), cv = document.createElement('canvas');
+      cv.width = w; cv.height = h; cv.getContext('2d').drawImage(img, 0, 0, w, h); URL.revokeObjectURL(u);
+      cv.toBlob(async blob => {
+        try { prod = await api.upload(`/studio/products/${prod.id}/cover`, blob, { type: 'image/jpeg' }).promise; rerenderProduct(); toast('Обложка обновлена'); }
+        catch (e) { toast(e.message); }
+      }, 'image/jpeg', .85);
+    };
+    img.onerror = () => { URL.revokeObjectURL(u); toast('Не удалось открыть картинку.'); };
+    img.src = u;
+  }
+
+  // Чат клуба для эксперта и модератора: новые сообщения подгружаются каждые 5 секунд.
+  const chatMsg = m => `<div class="chat-message ${m.mine ? 'self' : ''} ${m.isExpert ? 'expert' : ''}" data-id="${m.id}"><strong>${esc(m.mine ? 'Вы' : m.author)}</strong>${esc(m.text)}<small>${esc(shortFmt.format(new Date(m.createdAt)))}</small></div>`;
+  function appendChat(list) {
+    const box = $('#chatMessages'); if (!box) return;
+    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+    for (const m of list) { if (box.querySelector(`[data-id="${m.id}"]`)) continue; $('#chatEmpty')?.remove(); box.insertAdjacentHTML('beforeend', chatMsg(m)); if (m.createdAt > chatLast) chatLast = m.createdAt; }
+    if (atBottom) box.scrollTop = box.scrollHeight;
+  }
+  async function openChat(id, title) {
+    const msgs = await api.get(`/products/${id}/messages`);
+    chatLast = msgs.at(-1)?.createdAt || '';
+    openDialog(esc(title || 'Чат'), `<p class="fine-print">Участники видят ваше полное имя. Не давайте персональных торговых рекомендаций и не обещайте доходность.</p><div class="chat-messages" id="chatMessages" aria-live="polite">${msgs.length ? msgs.map(chatMsg).join('') : '<p class="fine-print" id="chatEmpty">Сообщений пока нет.</p>'}</div><form class="chat-form" id="chatForm" data-product="${id}"><input type="text" name="message" required maxlength="1000" aria-label="Сообщение" placeholder="Сообщение участникам" autocomplete="off"><button class="btn" type="submit" title="Отправить" aria-label="Отправить">${icon('send')}</button></form>`, 'wide');
+    $('#chatMessages').scrollTop = $('#chatMessages').scrollHeight;
+    clearInterval(chatTimer);
+    chatTimer = setInterval(async () => {
+      if (!modal.open || !$('#chatForm')) { clearInterval(chatTimer); return; }
+      try { appendChat(await api.get(`/products/${id}/messages?after=${encodeURIComponent(chatLast)}`)); } catch (_) { /* повторим через 5 секунд */ }
+    }, 5000);
+  }
+
   // ---------- Прогнозы ----------
   const conditionText = f => {
     const change = (f.targetPrice - f.startPrice) / f.startPrice * 100;
@@ -292,13 +422,13 @@
 
   // ---------- Ученики, отзывы, доход, профиль ----------
   async function studentsView() {
-    const [list, courses] = await Promise.all([api.get(`/studio/students${stFilter !== 'all' ? `?course=${encodeURIComponent(stFilter)}` : ''}`), api.get('/studio/courses')]);
-    const live = courses.filter(c => c.status === 'published' || c.status === 'hidden');
-    const total = live.reduce((a, c) => a + c.students, 0);
-    return `<h1>Ученики</h1><p class="subtitle">${nf.format(total)} ${plural(total, 'ученик', 'ученика', 'учеников')} в ${live.length} ${plural(live.length, 'курсе', 'курсах', 'курсах')}.</p>
-      <div class="notice lock-note">${icon('lock')}Почта и телефоны учеников скрыты. Связь только через сообщения курса на платформе.</div>
-      <div class="toolbar"><label class="form-label inline">Курс<select id="stFilter"><option value="all">Все курсы</option>${live.map(c => `<option value="${c.id}" ${stFilter === c.id ? 'selected' : ''}>${esc(c.title)}</option>`).join('')}</select></label></div>
-      ${list.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Ученик</th><th>Курс</th><th>Прогресс</th><th>Последняя активность</th></tr></thead><tbody>${list.map(s => `<tr><td><span class="person"><span class="user-avatar">${esc(s.name[0])}</span>${esc(s.name)}</span></td><td>${esc(s.courseTitle)}</td><td><span class="progress-cell"><span class="progress"><span style="width:${s.progress.percent}%"></span></span>${s.progress.percent}%</span></td><td>${fmtDate(s.lastActivity)}</td></tr>`).join('')}</tbody></table></div>` : empty('Учеников пока нет', 'Они появятся, когда кто-то получит доступ к вашему курсу.', 'users-round')}`;
+    const [list, courses, products, o] = await Promise.all([api.get(`/studio/students${stFilter !== 'all' ? `?item=${encodeURIComponent(stFilter)}` : ''}`), api.get('/studio/courses'), api.get('/studio/products'), api.get('/studio/overview')]);
+    const isLive = c => c.status === 'published' || c.status === 'hidden';
+    const liveCourses = courses.filter(isLive), liveProducts = products.filter(isLive);
+    return `<h1>Ученики</h1><p class="subtitle">${nf.format(o.students)} ${plural(o.students, 'ученик', 'ученика', 'учеников')} в ${liveCourses.length + liveProducts.length} ${plural(liveCourses.length + liveProducts.length, 'курсе или продукте', 'курсах и продуктах', 'курсах и продуктах')}.</p>
+      <div class="notice lock-note">${icon('lock')}Почта и телефоны учеников скрыты. Связь только через платформу: встречи по расписанию и чаты клубов.</div>
+      <div class="toolbar"><label class="form-label inline">Показать<select id="stFilter"><option value="all">Всех учеников</option>${liveCourses.length ? `<optgroup label="Курсы">${liveCourses.map(c => `<option value="${c.id}" ${stFilter === c.id ? 'selected' : ''}>${esc(c.title)}</option>`).join('')}</optgroup>` : ''}${liveProducts.length ? `<optgroup label="Встречи, клубы, идеи">${liveProducts.map(p => `<option value="${p.id}" ${stFilter === p.id ? 'selected' : ''}>${esc(p.title)}</option>`).join('')}</optgroup>` : ''}</select></label></div>
+      ${list.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Ученик</th><th>Курс или продукт</th><th>Прогресс</th><th>Последняя активность</th></tr></thead><tbody>${list.map(s => `<tr><td><span class="person"><span class="user-avatar">${esc(s.name[0])}</span>${esc(s.name)}</span></td><td><a class="text-link plain" href="#${s.kind === 'course' ? 'course' : 'product'}/${s.itemId}">${esc(s.itemTitle)}</a></td><td><span class="progress-cell"><span class="progress"><span style="width:${s.progress.percent}%"></span></span>${esc(s.status)}</span></td><td>${fmtDate(s.lastActivity)}</td></tr>`).join('')}</tbody></table></div>` : empty('Учеников пока нет', 'Они появятся, когда кто-то получит доступ к вашему курсу или продукту.', 'users-round')}`;
   }
   async function reviewsView() {
     const all = await api.get('/studio/reviews');
@@ -320,9 +450,9 @@
     return `<h1>Доход</h1><p class="subtitle">Продажи, комиссия платформы и выплаты. ${esc(s.payoutsNote)}</p>
       <div class="kpis"><div class="kpi"><small>Продажи · ${last.label.toLowerCase()}</small><strong>${tenge(last.gross)}</strong><span>${last.sales} ${plural(last.sales, 'продажа', 'продажи', 'продаж')}, до комиссии</span></div><div class="kpi"><small>Комиссия Dal · ${s.commissionRate * 100}%</small><strong>−${tenge(last.commission)}</strong><span>с каждой продажи</span></div><div class="kpi"><small>Ваш доход</small><strong>${tenge(last.net)}</strong><span>за ${last.label.toLowerCase()}</span></div><div class="kpi"><small>Следующая выплата</small><strong>${fmtDate(s.nextPayout).replace(/\s\d{4}$/, '')}</strong><span>${s.refunds.count ? `возвратов: ${s.refunds.count} на ${tenge(s.refunds.amount)}` : 'возвратов не было'}</span></div></div>
       <section class="chart-card"><div class="section-head"><h2>Продажи по месяцам</h2><span class="tiny-meta">до комиссии, ₸</span></div><div class="bars" role="img" aria-label="Продажи за 6 месяцев: ${s.months.map(m => `${m.label} ${compact(m.gross)}`).join(', ')}">${s.months.map((m, i) => `<div class="bar ${i === s.months.length - 1 ? 'current' : ''}"><span class="bar-value">${m.gross ? compact(m.gross) : '0'}</span><span class="bar-fill" style="height:${Math.round(m.gross / max * 100)}%"></span><span class="bar-label">${m.label}</span></div>`).join('')}</div></section>
-      <div class="section-head"><h2>По курсам</h2></div>${s.byCourse.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Курс</th><th class="num">Учеников</th><th class="num">Продажи за всё время</th><th class="num">Ваш доход</th></tr></thead><tbody>${s.byCourse.map(c => `<tr><td>${esc(c.title)}</td><td class="num">${nf.format(c.students)}</td><td class="num">${tenge(c.revenue)}</td><td class="num">${tenge(c.income)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="subtitle">Продаж пока нет.</p>'}
-      <div class="section-head"><h2>Последние продажи</h2></div>${s.recent.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Дата</th><th>Курс</th><th>Ученик</th><th class="num">Сумма</th><th class="num">Комиссия</th><th class="num">Вам</th></tr></thead><tbody>${s.recent.map(r => `<tr><td>${fmtDate(r.date)}</td><td>${esc(r.courseTitle)}</td><td>${esc(r.student)}</td><td class="num">${tenge(r.amount)}</td><td class="num">−${tenge(r.commission)}</td><td class="num">${tenge(r.net)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="subtitle">Продаж пока нет.</p>'}
-      <p class="rank-context">Возврат возможен в течение 14 дней, если ученик прошёл меньше 20% курса. Сумма возврата списывается с вашего баланса.</p>`;
+      <div class="section-head"><h2>По курсам и продуктам</h2></div>${s.byItem.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Курс или продукт</th><th class="num">Учеников</th><th class="num">Продажи за всё время</th><th class="num">Ваш доход</th></tr></thead><tbody>${s.byItem.map(c => `<tr><td><a class="text-link plain" href="#${c.kind === 'course' ? 'course' : 'product'}/${c.itemId}">${esc(c.title)}</a></td><td class="num">${nf.format(c.students)}</td><td class="num">${tenge(c.revenue)}</td><td class="num">${tenge(c.income)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="subtitle">Продаж пока нет.</p>'}
+      <div class="section-head"><h2>Последние продажи</h2></div>${s.recent.length ? `<div class="table-wrap"><table class="data-table"><thead><tr><th>Дата</th><th>Что купили</th><th>Ученик</th><th class="num">Сумма</th><th class="num">Комиссия</th><th class="num">Вам</th></tr></thead><tbody>${s.recent.map(r => `<tr><td>${fmtDate(r.date)}</td><td>${esc(r.courseTitle)}</td><td>${esc(r.student)}</td><td class="num">${tenge(r.amount)}</td><td class="num">−${tenge(r.commission)}</td><td class="num">${tenge(r.net)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="subtitle">Продаж пока нет.</p>'}
+      <p class="rank-context">Возврат курса — в течение 14 дней, если пройдено меньше 20%. Возврат встреч — в течение 14 дней, пока ни одна не назначена. Подписки и материалы не возвращаются. Сумма возврата списывается с вашего баланса.</p>`;
   }
   async function profileView() {
     profile = await api.get('/studio/profile');
@@ -338,6 +468,10 @@
           <label class="form-label">Специализация<input type="text" name="specialization" id="p-role" maxlength="80" value="${esc(profile.specialization)}" required></label>
           <label class="form-label">О себе<textarea name="bio" id="p-bio" rows="5" maxlength="800">${esc(profile.bio)}</textarea></label>
           <label class="form-label">Достижения, каждое с новой строки<textarea name="achievements" id="p-ach" rows="4" maxlength="900">${esc(profile.achievements.join('\n'))}</textarea></label>
+          <div class="form-label">Фото<div class="avatar-edit"><span class="user-avatar profile-avatar">${profile.avatarUrl ? `<img src="${esc(profile.avatarUrl)}" alt="">` : esc(initials(profile.name))}</span><div><label class="btn secondary small file-btn">${icon('camera')}${profile.hasOwnAvatar ? 'Сменить фото' : 'Загрузить фото'}<input type="file" id="avatarInput" class="sr-only" accept="image/jpeg,image/png,image/webp"></label>${profile.hasOwnAvatar ? `<button type="button" class="text-link" data-action="avatar-remove">${icon('trash-2')}Убрать</button>` : ''}<p class="fine-print">JPG, PNG или WEBP до 5 МБ. Лучше портрет на светлом фоне.</p></div></div></div>
+        </section>
+        <section class="editor-section"><h2>Соцсети</h2><p class="field-hint">Ссылки появятся на вашей странице. Для Telegram, Instagram и YouTube достаточно @ника.</p>
+          <div class="field-row">${SOCIAL_FIELDS.map(([k, n, ph]) => `<label class="form-label">${n}<input type="text" name="social-${k}" maxlength="200" value="${esc(profile.socials[k] || '')}" placeholder="${ph}"><span class="field-error" id="err-${k}" hidden></span></label>`).join('')}</div>
           <button class="btn" type="submit">${icon('check')}Сохранить</button>
         </section>
       </form><aside class="editor-panel"><div class="panel-card"><span class="tiny-meta">Так вас видят ученики</span><div class="profile-card">${profile.avatarUrl ? `<img src="${esc(profile.avatarUrl)}" alt="">` : `<span class="user-avatar big-avatar">${esc(initials(profile.name))}</span>`}<strong>${esc(profile.name)}</strong><p>${esc(profile.specialization || 'Специализация не указана')}</p><p class="profile-card-bio">${esc(profile.bio)}</p></div><a class="text-link" href="/#expert/${me.id}" target="_blank" rel="noopener">${icon('external-link')}Открыть мою страницу</a></div></aside></div>`;
@@ -354,8 +488,9 @@
   async function moderationView() {
     const q = await api.get('/moderation/queue');
     const section = (title, ic, n, body) => `<section class="mod-section"><div class="section-head"><h2>${icon(ic)}${title}</h2>${n ? `<span class="chip review">${n}</span>` : ''}</div>${n ? body : '<p class="subtitle">Нет заявок.</p>'}</section>`;
-    const total = q.courses.length + q.reports.length + q.profileRequests.length + q.unverifiedExperts.length + q.forecastsToResolve.length;
-    return `<div class="page-topline"><span class="eyebrow">МОДЕРАЦИЯ</span><span class="tiny-meta">${total ? `Ждут решения: ${total}` : 'Очередь пуста'}</span></div><h1>Очередь модерации</h1><p class="subtitle">Курсы, жалобы, изменения профилей, подтверждение экспертов и итоги прогнозов.</p>
+    const total = q.courses.length + q.products.length + q.reports.length + q.profileRequests.length + q.unverifiedExperts.length + q.forecastsToResolve.length;
+    return `<div class="page-topline"><span class="eyebrow">МОДЕРАЦИЯ</span><span class="tiny-meta">${total ? `Ждут решения: ${total}` : 'Очередь пуста'}</span></div><h1>Очередь модерации</h1><p class="subtitle">Курсы, консультации, клубы и идеи, жалобы, изменения профилей, подтверждение экспертов и итоги прогнозов.</p>
+      ${section('Встречи, клубы и идеи на проверке', 'calendar-clock', q.products.length, `<div class="course-list">${q.products.map(p => `<article class="course-row"><a class="course-cover" href="#review-product/${p.id}" tabindex="-1" aria-hidden="true">${coverHTML(p.coverUrl)}</a><div class="course-info"><div class="course-meta">${productChip(p)}<span>${esc(p.typeName)}</span></div><h2><a href="#review-product/${p.id}">${esc(p.title)}</a></h2><p>${esc(p.expert.name)} · ${esc(p.meta)} · ${money(p.price)} · отправлен ${fmtDate(p.submittedAt)}</p></div><div class="mod-actions"><a class="btn secondary small" href="#review-product/${p.id}">${icon('eye')}Проверить</a><button class="btn small" data-action="approve" data-kind="product" data-id="${p.id}">${icon('check')}Одобрить</button><button class="btn secondary small" data-action="reject" data-kind="product" data-id="${p.id}">${icon('undo-2')}Вернуть</button></div></article>`).join('')}</div>`)}
       ${section('Курсы на проверке', 'clapperboard', q.courses.length, `<div class="course-list">${q.courses.map(c => `<article class="course-row"><a class="course-cover" href="#review-course/${c.id}" tabindex="-1" aria-hidden="true">${coverHTML(c.coverUrl)}</a><div class="course-info"><div class="course-meta">${courseChip(c)}<span>${esc(c.categoryName)}</span></div><h2><a href="#review-course/${c.id}">${esc(c.title)}</a></h2><p>${esc(c.expert.name)} · ${c.lessons} ${plural(c.lessons, 'урок', 'урока', 'уроков')} · ${money(c.price)} · отправлен ${fmtDate(c.submittedAt)}</p></div><div class="mod-actions"><a class="btn secondary small" href="#review-course/${c.id}">${icon('eye')}Проверить</a><button class="btn small" data-action="approve" data-id="${c.id}">${icon('check')}Одобрить</button><button class="btn secondary small" data-action="reject" data-id="${c.id}">${icon('undo-2')}Вернуть</button></div></article>`).join('')}</div>`)}
       ${section('Жалобы на отзывы', 'flag', q.reports.length, `<div class="review-list">${q.reports.map(r => `<article class="review-card"><div class="review-top"><span class="review-who"><strong>${esc(r.courseTitle)}</strong><small>Жалоба: ${REASONS[r.reason] || esc(r.reason)} · от ${esc(r.reportedBy)} · ${fmtDate(r.createdAt)}</small></span>${rating(r.rating)}</div><p>${esc(r.text)}</p><div class="mod-actions"><button class="btn secondary small" data-action="report-keep" data-id="${r.id}">Оставить отзыв</button><button class="btn small danger" data-action="report-remove" data-id="${r.id}">${icon('eye-off')}Скрыть отзыв</button></div></article>`).join('')}</div>`)}
       ${section('Изменения профиля', 'user-round', q.profileRequests.length, `<div class="table-wrap"><table class="data-table"><thead><tr><th>Эксперт</th><th>Поле</th><th>Было</th><th>Станет</th><th></th></tr></thead><tbody>${q.profileRequests.map(r => `<tr><td>${esc(r.currentName)}</td><td>${r.field === 'name' ? 'Имя' : 'Стаж'}</td><td>${esc(r.field === 'name' ? r.currentName : r.currentExperience || '—')}</td><td><b>${esc(r.value)}</b></td><td><span class="mod-actions"><button class="btn small" data-action="request-approve" data-id="${r.id}">Одобрить</button><button class="btn secondary small" data-action="request-reject" data-id="${r.id}">Отклонить</button></span></td></tr>`).join('')}</tbody></table></div>`)}
@@ -372,6 +507,20 @@
       <aside class="editor-panel"><div class="panel-card"><span class="tiny-meta">Решение</span>${inQueue ? `<ul class="checklist">${inQueue.checklist.map(x => `<li class="${x.ok ? 'ok' : ''}">${icon(x.ok ? 'circle-check' : 'circle')}${esc(x.label)}</li>`).join('')}</ul><button class="btn wide" data-action="approve" data-id="${id}">${icon('check')}Одобрить и опубликовать</button><button class="btn secondary wide" data-action="reject" data-id="${id}">${icon('undo-2')}Вернуть с комментарием</button>` : '<p class="subtitle">Курс не на модерации.</p>'}</div><div class="panel-card subtle"><h3>Что проверить</h3><ul class="plain-list"><li>Видео открывается и слышен звук</li><li>Нет обещаний доходности и персональных торговых советов</li><li>Описание соответствует содержанию</li></ul></div></aside></div>`;
   }
 
+  async function reviewProductView(id) {
+    const p = await api.get(`/moderation/products/${id}`);
+    const t = PTYPES[p.type], inReview = p.status === 'review';
+    const facts = [['Тип', p.typeName], ['Цена', money(p.price) + (t.kind === 'subscription' ? ` за ${p.periodDays} дней` : '')]];
+    if (t.kind === 'sessions') facts.push(['Встреча', `${p.durationMin} мин${p.type !== 'consultation' ? ` · пакет ${p.sessions}` : ''}`], ['Свободных окон', String(p.slots.filter(s => !s.bookedBy).length)]);
+    if (p.meetingUrl) facts.push(['Ссылка на звонок', `<a class="text-link plain" href="${esc(p.meetingUrl)}" target="_blank" rel="noopener nofollow">${esc(p.meetingUrl)}</a>`]);
+    if (p.scheduleNote) facts.push(['Расписание', esc(p.scheduleNote)]);
+    return `${breadcrumb([['Модерация', '#moderation'], [p.title]])}<div class="heading-row"><h1>${esc(p.title)}</h1>${productChip(p)}</div><p class="subtitle">${esc(p.expert.name)} · ${esc(p.modeName)}</p>
+      <div class="editor"><div class="editor-main"><section class="editor-section"><h2>Описание</h2><p class="mod-text">${esc(p.description)}</p>${coverHTML(p.coverUrl, 'mod-cover')}</section>
+      <section class="editor-section"><h2>Условия</h2><dl class="facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${v.startsWith('<a') ? v : esc(v)}</dd></div>`).join('')}</dl></section>
+      ${t.kind === 'material' ? `<section class="editor-section"><h2>Текст целиком</h2><article class="readable mod-text">${richText(p.content)}</article></section>` : ''}</div>
+      <aside class="editor-panel"><div class="panel-card"><span class="tiny-meta">Решение</span>${inReview ? `<ul class="checklist">${p.checklist.map(x => `<li class="${x.ok ? 'ok' : ''}">${icon(x.ok ? 'circle-check' : 'circle')}${esc(x.label)}</li>`).join('')}</ul><button class="btn wide" data-action="approve" data-kind="product" data-id="${id}">${icon('check')}Одобрить и опубликовать</button><button class="btn secondary wide" data-action="reject" data-kind="product" data-id="${id}">${icon('undo-2')}Вернуть с комментарием</button>` : '<p class="subtitle">Продукт не на модерации.</p>'}</div><div class="panel-card subtle"><h3>Что проверить</h3><ul class="plain-list"><li>Нет обещаний доходности и персональных торговых советов</li><li>Описание соответствует формату и цене</li>${t.kind === 'material' ? '<li>Текст осмысленный, источники указаны</li>' : '<li>Ссылка ведёт на сервис видеосвязи</li>'}</ul></div></aside></div>`;
+  }
+
   // ---------- Рендер ----------
   let routeKey = '', lastNav = '', seq = 0;
   const studentBlock = () => empty('Dal Studio — для экспертов', 'Вы вошли как ученик. Свои курсы и прогресс смотрите на сайте Dal.', 'clapperboard', `<a class="btn" href="/">${icon('arrow-right')}На сайт Dal</a> <button class="btn secondary" data-action="logout">${icon('log-out')}Выйти</button>`);
@@ -380,12 +529,15 @@
     if (me.role === 'moderator') {
       if (page === 'rights') return rightsView();
       if (page === 'review-course') return reviewCourseView(id);
+      if (page === 'review-product') return reviewProductView(id);
       return moderationView();
     }
     switch (page) {
       case '': case 'overview': return overview();
       case 'courses': return coursesView();
       case 'course': return courseEditor(id);
+      case 'products': return productsView();
+      case 'product': return productEditor(id);
       case 'forecasts': return forecastsView();
       case 'forecast-new': return forecastNew();
       case 'students': return studentsView();
@@ -413,7 +565,7 @@
     clearTimeout(slow);
     if (my !== seq) return;
     main.innerHTML = `<div class="page ${newRoute ? '' : 'still'}">${html}${footer()}</div>`;
-    renderNav(page); icons(); hydrateThumbs(main); programMeta();
+    renderNav(page); applyAppearance(); icons(); hydrateThumbs(main); programMeta();
     if (page === 'forecast-new') updateFcPreview();
     document.title = `Dal Studio · ${$('h1', main)?.textContent || ''}`;
     if (newRoute) { window.scrollTo({ top: 0, behavior: 'instant' }); if (lastNav) main.focus({ preventScroll: true }); }
@@ -462,6 +614,22 @@
       case 'logout': guard(async () => { await api.logout(); location.href = '/login.html'; }, b); break;
       case 'new-course': guard(async () => { const c = await api.post('/studio/courses', {}); current = (await api.post(`/studio/modules/${c.modules[0].id}/lessons`, {})).course; location.hash = `#course/${c.id}`; }, b); break;
       case 'course-filter': courseFilter = id; render(); break;
+      case 'product-filter': productFilter = id; render(); break;
+      case 'new-product': newProductDialog(); break;
+      case 'create-product': guard(async () => { const p = await api.post('/studio/products', { type: id }); modal.close(); location.hash = `#product/${p.id}`; }, b); break;
+      case 'product-cover': guard(async () => { prod = await api.patch(`/studio/products/${prod.id}`, { cover: id }); rerenderProduct(); }, b); break;
+      case 'product-submit': guard(async () => {
+        try { prod = await api.post(`/studio/products/${prod.id}/submit`); rerenderProduct(); toast('Продукт отправлен на модерацию'); }
+        catch (err) { if (Array.isArray(err.details)) toast('Не готово: ' + err.details.join('; ')); else throw err; }
+      }, b); break;
+      case 'product-withdraw': productAction('withdraw', 'Продукт снова в черновиках', b); break;
+      case 'product-unhide': productAction('unhide', 'Продукт снова в каталоге', b); break;
+      case 'product-hide': confirmDialog('Скрыть из каталога?', 'Новые ученики не смогут найти и купить продукт. Купившие сохранят доступ, записи на встречи останутся.', 'Скрыть', () => productAction('hide', 'Продукт скрыт из каталога')); break;
+      case 'delete-product': confirmDialog('Удалить продукт?', `«${esc(prod.title || 'Новый продукт')}» и его расписание будут удалены без возможности восстановления.`, 'Удалить', () => guard(async () => { await api.del(`/studio/products/${prod.id}`); prod = null; location.hash = '#products'; toast('Продукт удалён'); }), true); break;
+      case 'delete-slot': guard(async () => { prod = await api.del(`/studio/slots/${id}`); rerenderProduct(); toast('Окно убрано из расписания'); }, b); break;
+      case 'cancel-booking': confirmDialog('Отменить встречу?', `Встреча ${esc(b.dataset.when)} с учеником ${esc(b.dataset.who)} будет отменена. Встреча вернётся ученику в пакет, а окно станет свободным. Предупредите ученика в чате или на встрече заранее.`, 'Отменить встречу', () => guard(async () => { await api.post(`/bookings/${id}/cancel`); prod = await api.get(`/studio/products/${prod.id}`); rerenderProduct(); toast('Встреча отменена'); }), true); break;
+      case 'expert-chat': guard(() => openChat(id, prod?.title), b); break;
+      case 'avatar-remove': guard(async () => { await api.del('/me/avatar'); render(); toast('Фото убрано'); }, b); break;
       case 'fc-filter': fcFilter = id; render(); break;
       case 'rv-filter': rvFilter = id; render(); break;
       case 'cover': guard(async () => { current = await api.patch(`/studio/courses/${current.id}`, { cover: id }); rerenderEditor(); }, b); break;
@@ -484,8 +652,8 @@
       case 'report': openDialog('Пожаловаться на отзыв', `<p class="modal-text">Отзыв останется видимым, пока модерация не примет решение.</p><form id="reportForm" data-id="${id}">${Object.entries(REASONS).map(([k, t], i) => `<label class="check-line"><input type="radio" name="reason" value="${k}" ${i === 0 ? 'checked' : ''}><span>${t}</span></label>`).join('')}<div class="modal-actions"><button type="button" class="btn secondary" data-action="close-modal">Отмена</button><button class="btn" type="submit">Отправить жалобу</button></div></form>`); break;
       case 'request': { const field = id; openDialog(field === 'name' ? 'Изменить имя' : 'Изменить стаж', `<p class="modal-text">Изменение вступит в силу после проверки модератором.</p><form id="requestForm" data-field="${field}"><label class="form-label">${field === 'name' ? 'Новое имя и фамилия' : 'Стаж, например «6 лет практики»'}<input type="text" name="value" maxlength="60" required value="${esc(field === 'name' ? profile.name : profile.experience)}"></label><div class="modal-actions"><button type="button" class="btn secondary" data-action="close-modal">Отмена</button><button class="btn" type="submit">Отправить на модерацию</button></div></form>`); break; }
       // Модерация
-      case 'approve': guard(async () => { await api.post(`/moderation/courses/${id}/approve`); toast('Курс одобрен и опубликован'); if (location.hash === '#moderation') render(); else location.hash = '#moderation'; }, b); break;
-      case 'reject': openDialog('Вернуть курс эксперту', `<form id="rejectForm" data-id="${id}"><label class="form-label">Что нужно исправить<textarea name="note" rows="4" maxlength="1000" required minlength="5" placeholder="Например: во втором уроке нет звука"></textarea></label><div class="modal-actions"><button type="button" class="btn secondary" data-action="close-modal">Отмена</button><button class="btn" type="submit">Вернуть</button></div></form>`); break;
+      case 'approve': guard(async () => { const product = b.dataset.kind === 'product'; await api.post(`/moderation/${product ? 'products' : 'courses'}/${id}/approve`); toast(product ? 'Продукт одобрен и опубликован' : 'Курс одобрен и опубликован'); if (location.hash === '#moderation') render(); else location.hash = '#moderation'; }, b); break;
+      case 'reject': openDialog(b.dataset.kind === 'product' ? 'Вернуть продукт эксперту' : 'Вернуть курс эксперту', `<form id="rejectForm" data-id="${id}" data-kind="${b.dataset.kind || 'course'}"><label class="form-label">Что нужно исправить<textarea name="note" rows="4" maxlength="1000" required minlength="5" placeholder="Например: во втором уроке нет звука"></textarea></label><div class="modal-actions"><button type="button" class="btn secondary" data-action="close-modal">Отмена</button><button class="btn" type="submit">Вернуть</button></div></form>`); break;
       case 'report-keep': case 'report-remove': guard(async () => { await api.post(`/moderation/reports/${id}/resolve`, { action: action === 'report-keep' ? 'keep' : 'remove' }); toast(action === 'report-keep' ? 'Отзыв оставлен' : 'Отзыв скрыт'); render(); }, b); break;
       case 'request-approve': case 'request-reject': guard(async () => { await api.post(`/moderation/profile-requests/${id}/${action === 'request-approve' ? 'approve' : 'reject'}`); toast(action === 'request-approve' ? 'Изменение одобрено' : 'Изменение отклонено'); render(); }, b); break;
       case 'verify': guard(async () => { await api.post(`/moderation/experts/${id}/verify`); toast('Эксперт подтверждён'); render(); }, b); break;
@@ -495,6 +663,18 @@
   document.addEventListener('input', e => {
     const t = e.target;
     if (t.closest('#forecastForm')) { if (t.name === 'ticker') t.value = t.value.toUpperCase().replace(/[^A-Z0-9.]/g, ''); updateFcPreview(); return; }
+    if (t.dataset.pfield && prod?.rules.canEdit && t.tagName !== 'SELECT') {
+      const f = t.dataset.pfield;
+      if (f === 'title') $('#productHead').textContent = t.value || 'Новый продукт';
+      if (f === 'description') $('#pDescCounter').textContent = `${t.value.length} / 1500 · минимум 80`;
+      if (f === 'content') $('#contentCounter').textContent = `${t.value.length} символов · минимум 300 · до покупки видно первые 400 · подзаголовок начинается с «## »`;
+      const numeric = ['price', 'sessions', 'periodDays'].includes(f);
+      const value = numeric ? (t.value === '' ? (f === 'price' ? null : undefined) : Math.max(0, Math.round(Number(t.value)))) : t.value;
+      if (value === undefined) return;
+      if (f === 'meetingUrl' && t.value && !/^https?:\/\/\S+\.\S+$/i.test(t.value.trim())) { const s = $('#saveState'); if (s) s.textContent = 'Ссылка должна начинаться с https://'; return; }
+      saveSoon('product-' + f, async () => { prod = await api.patch(`/studio/products/${prod.id}`, { [f]: value }); refreshProductPanel(); });
+      return;
+    }
     if (!current || !current.rules.canEdit) return;
     if (t.dataset.field && t.dataset.field !== 'category') {
       const f = t.dataset.field;
@@ -511,6 +691,14 @@
     if (t.id === 'stFilter') { stFilter = t.value; render(); return; }
     if (t.dataset.upload) { handleFile(t.dataset.upload, t.files[0]); t.value = ''; return; }
     if (t.id === 'coverInput') { coverFromFile(t.files[0]); t.value = ''; return; }
+    if (t.id === 'productCoverInput') { productCoverFromFile(t.files[0]); t.value = ''; return; }
+    if (t.tagName === 'SELECT' && t.dataset.pfield && prod) { guard(async () => { prod = await api.patch(`/studio/products/${prod.id}`, { [t.dataset.pfield]: Number(t.value) }); refreshProductPanel(); }); return; }
+    if (t.id === 'avatarInput') {
+      const file = t.files[0]; t.value = ''; if (!file) return;
+      if (file.size > 5 * 1024 * 1024) { toast('Фото больше 5 МБ'); return; }
+      guard(async () => { await api.upload('/me/avatar', file, { type: file.type }).promise; render(); toast('Фото обновлено: ученики уже видят его'); });
+      return;
+    }
     if (t.dataset.field === 'category' && current) guard(async () => { current = await api.patch(`/studio/courses/${current.id}`, { category: t.value }); refreshPanel(); $('#courseCategory').textContent = current.categoryName; });
     if (t.dataset.free && current) guard(async () => { try { current = await api.patch(`/studio/lessons/${t.dataset.free}`, { isFree: t.checked }); } finally { rerenderEditor(); } });
   });
@@ -537,8 +725,31 @@
     if (form.classList.contains('reply-form')) return guard(async () => { await api.put(`/studio/reviews/${form.dataset.review}/reply`, { text: String(fd.get('reply')).trim() }); editingReply = ''; render(); toast('Ответ опубликован'); }, btn);
     if (form.id === 'reportForm') return guard(async () => { await api.post(`/studio/reviews/${form.dataset.id}/report`, { reason: fd.get('reason') }); modal.close(); render(); toast('Жалоба отправлена модерации'); }, btn);
     if (form.id === 'requestForm') return guard(async () => { profile = await api.post('/studio/profile/requests', { field: form.dataset.field, value: String(fd.get('value')).trim() }); modal.close(); render(); toast('Запрос отправлен на модерацию'); }, btn);
-    if (form.id === 'profileForm') return guard(async () => { profile = await api.patch('/studio/profile', { specialization: String(fd.get('specialization')).trim(), bio: String(fd.get('bio')).trim(), achievements: String(fd.get('achievements')).split('\n').map(s => s.trim()).filter(Boolean) }); render(); toast('Профиль сохранён, ученики уже видят изменения'); }, btn);
-    if (form.id === 'rejectForm') return guard(async () => { await api.post(`/moderation/courses/${form.dataset.id}/reject`, { note: String(fd.get('note')).trim() }); modal.close(); toast('Курс возвращён эксперту'); if (location.hash === '#moderation') render(); else location.hash = '#moderation'; }, btn);
+    if (form.id === 'profileForm') return guard(async () => {
+      const socials = Object.fromEntries(SOCIAL_FIELDS.map(([k]) => [k, String(fd.get('social-' + k) || '').trim()]));
+      fieldErrors(form, {});
+      try { profile = await api.patch('/studio/profile', { specialization: String(fd.get('specialization')).trim(), bio: String(fd.get('bio')).trim(), achievements: String(fd.get('achievements')).split('\n').map(s => s.trim()).filter(Boolean), socials }); }
+      catch (err) { if (err.details && !Array.isArray(err.details)) fieldErrors(form, err.details); throw err; }
+      render(); toast('Профиль сохранён, ученики уже видят изменения');
+    }, btn);
+    if (form.id === 'slotForm') return guard(async () => {
+      const [y, mo, d] = String(fd.get('date')).split('-').map(Number), [h, mi] = String(fd.get('time')).split(':').map(Number);
+      const repeat = Number(fd.get('repeat')) || 1;
+      let added = 0, lastErr = null;
+      for (let i = 0; i < repeat; i++) {
+        const at = new Date(y, mo - 1, d + i * 7, h, mi);
+        try { prod = await api.post(`/studio/products/${prod.id}/slots`, { startsAt: at.toISOString() }); added++; } catch (err) { lastErr = err; }
+      }
+      rerenderProduct();
+      if (added) toast(`Добавлено окон: ${added}${lastErr ? `. Пропущено: ${repeat - added} (${lastErr.details?.startsAt || lastErr.message})` : ''}`);
+      else throw lastErr;
+    }, btn);
+    if (form.id === 'chatForm') return guard(async () => {
+      const input = form.elements.message, text = input.value.trim(); if (!text) return;
+      const m = await api.post(`/products/${form.dataset.product}/messages`, { text });
+      input.value = ''; appendChat([m]); $('#chatMessages').scrollTop = $('#chatMessages').scrollHeight; input.focus();
+    }, btn);
+    if (form.id === 'rejectForm') return guard(async () => { const product = form.dataset.kind === 'product'; await api.post(`/moderation/${product ? 'products' : 'courses'}/${form.dataset.id}/reject`, { note: String(fd.get('note')).trim() }); modal.close(); toast(product ? 'Продукт возвращён эксперту' : 'Курс возвращён эксперту'); if (location.hash === '#moderation') render(); else location.hash = '#moderation'; }, btn);
     if (form.classList.contains('resolve-form')) return guard(async () => { const r = await api.post(`/moderation/forecasts/${form.dataset.id}/resolve`, { closePrice: parseFloat(fd.get('closePrice')) }); toast(r.status === 'success' ? 'Итог: условие выполнено' : 'Итог: условие не выполнено'); render(); }, btn);
   });
 
@@ -547,7 +758,7 @@
   document.addEventListener('drop', e => { e.preventDefault(); const z = e.target.closest('[data-drop]'); if (!z) { if (e.dataTransfer?.files.length) toast('Перетащите видео на нужный урок.'); return; } z.classList.remove('dragover'); handleFile(z.dataset.drop, e.dataTransfer.files[0]); });
   window.addEventListener('beforeunload', e => { if (Object.keys(uploads).length) { e.preventDefault(); e.returnValue = ''; } });
   modal.addEventListener('click', e => { if (e.target === modal) { const r = modal.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) modal.close(); } });
-  modal.addEventListener('close', () => { $$('video', modal).forEach(v => v.pause()); if (lastFocus?.isConnected) lastFocus.focus({ preventScroll: true }); });
+  modal.addEventListener('close', () => { clearInterval(chatTimer); $$('video', modal).forEach(v => v.pause()); if (lastFocus?.isConnected) lastFocus.focus({ preventScroll: true }); });
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') closeMenu();
     if (e.target.closest('.tabs[role="tablist"]') && ['ArrowRight', 'ArrowLeft'].includes(e.key)) { const tabs = $$('[role="tab"]', e.target.closest('.tabs')), i = tabs.indexOf(e.target); e.preventDefault(); tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length].focus(); }
