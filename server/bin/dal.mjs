@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// Проверяет версию Node.js до загрузки TypeScript-кода: старый Node упал бы с непонятной ошибкой.
+// Checks the Node.js version before loading TypeScript code: an old Node would crash with a cryptic error.
 const [major, minor] = process.versions.node.split('.').map(Number);
 if (major < 22 || (major === 22 && minor < 18)) {
-  console.error(`Нужен Node.js 22.18 или новее (рекомендуется 24 LTS). Сейчас установлен ${process.version}.`);
-  console.error('Скачайте установщик LTS с https://nodejs.org и запустите команду снова.');
+  console.error(`Node.js 22.18 or newer is required (24 LTS recommended). Currently installed: ${process.version}.`);
+  console.error('Download the LTS installer from https://nodejs.org and run the command again.');
   process.exit(1);
 }
-// Настройки из server/.env, если файл есть (PORT, DB_PATH, STORAGE_DIR, SITE_DIR, HOST).
+// Settings from server/.env, if present (PORT, DB_PATH, STORAGE_DIR, SITE_DIR, HOST).
 const envFile = new URL('../.env', import.meta.url);
-try { process.loadEnvFile(envFile); } catch { /* файла нет — работаем с настройками по умолчанию */ }
+try { process.loadEnvFile(envFile); } catch { /* no file: use default settings */ }
 await import('../src/cli.ts');

@@ -1,9 +1,9 @@
--- Dal, этап 2: общая модель продуктов для режимов «Работа с экспертом», «Сообщество» и «Идеи и аналитика».
--- Курсы остаются в своих таблицах (у них модули, уроки и видео). Все остальные продукты устроены одинаково:
--- автор, название, описание, цена, обложка, отзывы, рейтинг, модерация. Различаются только типом.
---   experts:   consultation (одна встреча), personal (пакет встреч), mentorship (сопровождение — пакет встреч)
---   community: clubs (закрытый клуб: встречи и чат), chats (чат с экспертом и участниками) — подписка
---   ideas:     investment (инвестиционная идея), reviews (обзор рынка или компании) — материал, бесплатный или платный
+-- Dal, stage 2: a shared product model for the "Work with an expert", "Community" and "Ideas & analysis" modes.
+-- Courses stay in their own tables (they have modules, lessons and videos). All other products share one shape:
+-- author, title, description, price, cover, reviews, rating, moderation. They differ only by type.
+--   experts:   consultation (single session), personal (session package), mentorship (long-term support, session package)
+--   community: clubs (private club: meetings and chat), chats (chat with the expert and members): subscription
+--   ideas:     investment (investment idea), reviews (market or company review): material, free or paid
 
 CREATE TABLE products (
   id              TEXT PRIMARY KEY,
@@ -15,12 +15,12 @@ CREATE TABLE products (
   price           INTEGER CHECK (price IS NULL OR price >= 0),
   cover           TEXT,
   status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published', 'hidden')),
-  duration_min    INTEGER CHECK (duration_min IS NULL OR duration_min BETWEEN 15 AND 240),  -- длительность встречи
-  sessions        INTEGER CHECK (sessions IS NULL OR sessions BETWEEN 1 AND 52),            -- встреч в пакете
-  period_days     INTEGER CHECK (period_days IS NULL OR period_days BETWEEN 7 AND 365),     -- срок подписки
-  meeting_url     TEXT,     -- ссылка на звонок или встречи клуба: видна только купившим
-  schedule_note   TEXT,     -- расписание встреч клуба словами
-  content         TEXT,     -- текст материала идеи или обзора
+  duration_min    INTEGER CHECK (duration_min IS NULL OR duration_min BETWEEN 15 AND 240),  -- session length
+  sessions        INTEGER CHECK (sessions IS NULL OR sessions BETWEEN 1 AND 52),            -- sessions in the package
+  period_days     INTEGER CHECK (period_days IS NULL OR period_days BETWEEN 7 AND 365),     -- subscription period
+  meeting_url     TEXT,     -- call or club meeting link: visible to buyers only
+  schedule_note   TEXT,     -- club meeting schedule in plain words
+  content         TEXT,     -- text of an idea or review material
   moderation_note TEXT,
   submitted_at    TEXT,
   published_at    TEXT,
@@ -33,7 +33,7 @@ CREATE TABLE products (
 CREATE INDEX products_expert ON products(expert_id);
 CREATE INDEX products_status ON products(status, mode);
 
--- Покупка продукта. Для встреч — число встреч в пакете, для подписок — срок действия.
+-- Product purchase. For sessions: number of sessions in the package; for subscriptions: validity period.
 CREATE TABLE product_purchases (
   id             TEXT PRIMARY KEY,
   user_id        TEXT NOT NULL REFERENCES users(id),
@@ -49,7 +49,7 @@ CREATE TABLE product_purchases (
 );
 CREATE INDEX product_purchases_product ON product_purchases(product_id);
 
--- Продление подписки — отдельная продажа (для дохода эксперта).
+-- A subscription renewal is a separate sale (for expert income).
 CREATE TABLE product_renewals (
   id          TEXT PRIMARY KEY,
   purchase_id TEXT NOT NULL REFERENCES product_purchases(id),
@@ -58,7 +58,7 @@ CREATE TABLE product_renewals (
   created_at  TEXT NOT NULL
 );
 
--- Слоты расписания эксперта для встреч. Занятый слот нельзя удалить.
+-- Expert schedule slots for sessions. A booked slot cannot be deleted.
 CREATE TABLE product_slots (
   id          TEXT PRIMARY KEY,
   product_id  TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
@@ -113,7 +113,7 @@ CREATE TRIGGER products_keep_purchased BEFORE DELETE ON products
 WHEN EXISTS (SELECT 1 FROM product_purchases WHERE product_id = OLD.id)
 BEGIN SELECT RAISE(ABORT, 'course_has_students'); END;
 
--- Избранное: курсы и продукты.
+-- Favorites: courses and products.
 CREATE TABLE favorites (
   user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   item_id    TEXT NOT NULL,
@@ -121,6 +121,6 @@ CREATE TABLE favorites (
   PRIMARY KEY (user_id, item_id)
 );
 
--- Загруженное фото профиля (ученика или эксперта) и соцсети эксперта.
+-- Uploaded profile photo (student or expert) and expert social links.
 ALTER TABLE users ADD COLUMN avatar_file TEXT;
 ALTER TABLE expert_profiles ADD COLUMN socials TEXT NOT NULL DEFAULT '{}';

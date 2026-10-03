@@ -10,7 +10,7 @@ export const VIDEO = fs.readFileSync(path.join(SERVER_ROOT, 'seed-assets', 'demo
 
 interface Req { token?: string; body?: unknown; headers?: Record<string, string>; raw?: Buffer }
 
-// Поднимает сервер на свободном порту с отдельной базой и демо-данными.
+// Starts the server on a free port with a separate database and demo data.
 export async function startApp() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dal-test-'));
   const dbPath = path.join(dir, 'test.db'), storageDir = path.join(dir, 'storage');
@@ -27,7 +27,7 @@ export async function startApp() {
     const res = await fetch(base + p, { method, headers, body: o.raw ?? (o.body !== undefined ? JSON.stringify(o.body) : undefined) });
     const text = await res.text();
     let body: any = text;
-    try { body = JSON.parse(text); } catch { /* не JSON */ }
+    try { body = JSON.parse(text); } catch { /* not JSON */ }
     return { status: res.status, body, headers: res.headers };
   };
   const login = async (email: string) => {

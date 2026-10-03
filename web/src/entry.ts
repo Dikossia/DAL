@@ -1,5 +1,5 @@
-// Dal целиком в браузере: тот же код сервера (маршруты, правила, база SQLite) работает на странице.
-// Используется, когда сайт открыт не с локального сервера (например, на Vercel).
+// All of Dal in the browser: the same server code (routes, rules, SQLite database) runs in the page.
+// Used when the site is not served by a local server (e.g. on Vercel).
 import { openDb, migrate } from '../../server/src/db.ts';
 import { createRouter, HttpError, forbidden, notFound, type Ctx } from '../../server/src/http.ts';
 import { mapError, type App } from '../../server/src/app.ts';
@@ -39,7 +39,7 @@ export async function init(SQL: any) {
   state.SQL = SQL;
   store = await idb();
   const saved = await tx<Uint8Array | undefined>(store, 'kv', 'readonly', s => s.get('db'));
-  // Загруженные файлы (обложки, фото, видео) лежат в IndexedDB рядом с базой.
+  // Uploaded files (covers, photos, videos) are kept in IndexedDB next to the database.
   await new Promise<void>((res, rej) => {
     const r = store.transaction('files').objectStore('files').openCursor();
     r.onsuccess = () => { const c = r.result; if (!c) return res(); vfs.set(String(c.key), c.value); c.continue(); };
@@ -73,7 +73,7 @@ export async function reset() { store?.close(); await new Promise(r => { const q
 
 export interface LocalResponse { status: number; data?: unknown; blob?: Blob; type?: string }
 
-// Тот же порядок, что у HTTP-сервера: маршрут → вход и роль → тело → обработчик → понятная ошибка.
+// Same order as the HTTP server: route → auth and role → body → handler → readable error.
 export async function handle(method: string, rawUrl: string, headers: Record<string, string> = {}, body?: unknown): Promise<LocalResponse> {
   const url = new URL(rawUrl, 'http://local');
   const h: Record<string, string> = {}; for (const [k, v] of Object.entries(headers)) h[k.toLowerCase()] = String(v);

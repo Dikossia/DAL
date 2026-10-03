@@ -1,5 +1,5 @@
-// Английская версия интерфейса: переводит текст на странице по словарю web/i18n-en.js.
-// Переключатель EN / RU в шапке; выбор запоминается. ?lang=en или ?lang=ru в адресе тоже работает.
+// English UI: translates page text using the web/i18n-en.js dictionary.
+// EN / RU switch in the header; the choice is remembered. ?lang=en or ?lang=ru in the URL also works.
 (() => {
   'use strict';
   const KEY = 'dal-lang';
@@ -50,7 +50,7 @@
       if (tpl != null) { let i = 0; out = tpl.replace(/\{n\}/g, () => { const v = nums[i++] ?? ''; return /^\d+,\d+$/.test(v) ? v.replace(',', '.') : v; }); }
     }
     if (out == null) {
-      // Подписи с подставленным именем или разделом.
+      // Labels with an interpolated name or section.
       const m = /^(Меню|Открыть раздел|Профиль|Обложка|Ответ на отзыв|Удалить урок|Переместить урок) ?:? ?«?(.+?)»?$/.exec(t);
       const P = { 'Меню': 'Menu: ', 'Открыть раздел': 'Open ', 'Профиль': 'Profile: ', 'Обложка': 'Cover ', 'Ответ на отзыв': 'Reply to review: ', 'Удалить урок': 'Delete lesson ', 'Переместить урок': 'Move lesson ' };
       if (m && P[m[1]]) { const x = D[m[2]] ?? fallback(m[2]); out = P[m[1]] + x; }
@@ -88,6 +88,6 @@
   });
   obs.observe(document.documentElement, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ATTRS });
   document.addEventListener('DOMContentLoaded', () => walk(document.body));
-  // Системные окна подтверждения тоже переводим.
+  // Native confirm dialogs are translated too.
   const oc = window.confirm.bind(window); window.confirm = m => oc(tr(m) ?? m);
 })();

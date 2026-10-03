@@ -1,6 +1,6 @@
-// Режим «сервер в браузере»: если сайт открыт не с локального сервера Dal (например, на Vercel),
-// весь код сервера работает прямо на странице, а данные хранятся в браузере (IndexedDB).
-// Включить вручную: ?engine=browser, вернуть сервер: ?engine=server.
+// "Server in the browser" mode: if the site is not served by a local Dal server (e.g. on Vercel),
+// all server code runs right in the page and data is stored in the browser (IndexedDB).
+// Force on: ?engine=browser; switch back to the server: ?engine=server.
 (() => {
   'use strict';
   let forced = null;
@@ -19,7 +19,7 @@
   const base = '/web/';
   const load = src => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Не удалось загрузить ' + src)); document.head.append(s); });
 
-  // Видео, обложки и фото запрашивает сам браузер (<video>, <img>), поэтому их отдаёт сервис-воркер, спрашивая страницу.
+  // Videos, covers and photos are requested by the browser itself (<video>, <img>), so the service worker serves them by asking the page.
   async function serviceWorker() {
     if (!('serviceWorker' in navigator)) return;
     try {
@@ -52,7 +52,7 @@
     }
   };
 
-  // Заметная плашка: проверяющий сразу понимает, где хранятся данные, и может начать заново.
+  // A visible banner: reviewers immediately see where data is stored and can start over.
   document.addEventListener('DOMContentLoaded', () => {
     const b = document.createElement('div');
     b.className = 'local-badge';

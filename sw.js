@@ -1,4 +1,4 @@
-// Сервис-воркер демо-режима «сервер в браузере»: отдаёт видео уроков, обложки и фото, хранящиеся на странице.
+// Service worker for the "server in the browser" demo mode: serves lesson videos, covers and photos stored by the page.
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
 const MEDIA = /^\/(lessons\/[^/]+\/video|media\/(covers|avatars)\/[^/]+)$/;

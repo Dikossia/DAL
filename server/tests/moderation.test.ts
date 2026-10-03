@@ -6,11 +6,11 @@ let t: TestApp, aliya: string, mod: string;
 before(async () => { t = await startApp(); [aliya, mod] = await Promise.all(['aliya', 'moderator'].map(n => t.login(`${n}@dal.local`))); });
 after(async () => { await t.close(); });
 
-test('жалоба на отзыв: отзыв виден до решения, после «remove» скрыт', async () => {
+test('review report: review stays visible until resolved, hidden after "remove"', async () => {
   assert.equal((await t.api('POST', '/studio/reviews/r4/report', { token: aliya, body: { reason: 'spam' } })).status, 200);
   assert.equal((await t.api('POST', '/studio/reviews/r4/report', { token: aliya, body: { reason: 'spam' } })).body.error.code, 'already_reported');
   let pub = await t.api('GET', '/catalog/courses/c2/reviews');
-  assert.ok(pub.body.some((r: any) => r.id === 'r4'), 'пока идёт проверка, отзыв виден');
+  assert.ok(pub.body.some((r: any) => r.id === 'r4'), 'review is visible while under review');
   const q = await t.api('GET', '/moderation/queue', { token: mod });
   const report = q.body.reports.find((r: any) => r.reviewId === 'r4');
   assert.equal((await t.api('POST', `/moderation/reports/${report.id}/resolve`, { token: mod, body: { action: 'remove' } })).body.status, 'removed');
@@ -19,7 +19,7 @@ test('жалоба на отзыв: отзыв виден до решения, �
   assert.equal((await t.api('POST', `/moderation/reports/${report.id}/resolve`, { token: mod, body: { action: 'keep' } })).status, 409);
 });
 
-test('имя эксперта меняется только после одобрения модератором', async () => {
+test("expert's name changes only after moderator approval", async () => {
   let p = await t.api('POST', '/studio/profile/requests', { token: aliya, body: { field: 'name', value: 'Алия Нурланова-Ким' } });
   assert.equal(p.body.pendingRequests.length, 1);
   assert.equal((await t.api('GET', '/me', { token: aliya })).body.name, 'Алия Нурланова');
@@ -32,10 +32,10 @@ test('имя эксперта меняется только после одоб�
   assert.deepEqual(p.body.achievements, ['Автор практикума']);
 });
 
-test('обзор и доход эксперта считаются из реальных покупок', async () => {
+test('expert overview and income are computed from actual purchases', async () => {
   const ov = await t.api('GET', '/studio/overview', { token: aliya });
   assert.equal(ov.body.verified, true);
-  assert.ok(ov.body.students >= 10, 'ученики считаются без повторов');
+  assert.ok(ov.body.students >= 10, 'students are counted without duplicates');
   assert.ok(ov.body.attention.some((a: any) => a.type === 'draft'));
   assert.ok(ov.body.attention.some((a: any) => a.type === 'review'));
   const inc = await t.api('GET', '/studio/income', { token: aliya });
@@ -45,7 +45,7 @@ test('обзор и доход эксперта считаются из реал
   assert.match(inc.body.nextPayout, /^\d{4}-\d{2}-(05|20)$/);
 });
 
-test('модерация доступна только модератору', async () => {
+test('moderation is available to moderators only', async () => {
   for (const p of ['/moderation/courses/d1/approve', '/moderation/experts/arman/verify']) assert.equal((await t.api('POST', p, { token: aliya })).status, 403);
   assert.equal((await t.api('POST', '/moderation/experts/arman/verify', { token: mod })).body.error.code, 'already_verified');
 });

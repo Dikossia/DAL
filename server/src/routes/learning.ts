@@ -6,12 +6,12 @@ import { RULES } from '../rules.ts';
 import { newId, nowIso, daysBetween } from '../util.ts';
 import { getCourse, courseCard, structure, lessonContext, canWatch, hasActiveEnrollment, progressOf, videoFile, isLive } from '../courses.ts';
 
-// Ученик: покупка (пока без оплаты), обучение, прогресс, отзывы, возврат.
+// Student: purchase (no payment yet), learning, progress, reviews, refunds.
 export function registerLearning(app: App) {
   const { db, router } = app;
 
   router.add({
-    method: 'POST', path: '/courses/:id/enroll', group: 'Ученик', summary: 'Получить доступ к курсу. Оплата пока не подключена: цена фиксируется, деньги не списываются.', auth: ['student'],
+    method: 'POST', path: '/courses/:id/enroll', group: 'Student', summary: 'Get access to a course. Payment is not wired up yet: the price is recorded, no money is charged.', auth: ['student'],
     handler: ({ user, params }) => {
       const c = getCourse(db, params.id);
       if (c.status !== 'published') throw notFound('Курс не найден');
@@ -27,7 +27,7 @@ export function registerLearning(app: App) {
   });
 
   router.add({
-    method: 'POST', path: '/courses/:id/refund', group: 'Ученик', summary: `Вернуть курс: в течение ${RULES.refundDays} дней и если пройдено меньше ${RULES.refundMaxProgress * 100}%.`, auth: ['student'],
+    method: 'POST', path: '/courses/:id/refund', group: 'Student', summary: `Refund a course: within ${RULES.refundDays} days and only if less than ${RULES.refundMaxProgress * 100}% is completed.`, auth: ['student'],
     handler: ({ user, params }) => {
       const e = db.get(`SELECT * FROM enrollments WHERE user_id = ? AND course_id = ? AND status = 'active'`, user!.id, params.id);
       if (!e) throw notFound('Активная покупка не найдена');
@@ -40,7 +40,7 @@ export function registerLearning(app: App) {
   });
 
   router.add({
-    method: 'GET', path: '/me/learning', group: 'Ученик', summary: 'Мои курсы с прогрессом и курс «в процессе».', auth: ['student'],
+    method: 'GET', path: '/me/learning', group: 'Student', summary: 'My courses with progress and the "in progress" course.', auth: ['student'],
     handler: ({ user }) => {
       const rows = db.all(`SELECT c.*, e.created_at AS enrolled_at FROM enrollments e JOIN courses c ON c.id = e.course_id WHERE e.user_id = ? AND e.status = 'active' ORDER BY e.created_at DESC`, user!.id);
       const list = rows.map(c => ({ ...courseCard(db, c), enrolledAt: c.enrolled_at, progress: progressOf(db, user!.id, c.id) }));
@@ -49,7 +49,7 @@ export function registerLearning(app: App) {
   });
 
   router.add({
-    method: 'GET', path: '/learning/courses/:id', group: 'Ученик', summary: 'Содержимое купленного курса: уроки, отметки о прохождении, ссылки на видео.', auth: 'user',
+    method: 'GET', path: '/learning/courses/:id', group: 'Student', summary: 'Contents of a purchased course: lessons, completion marks, video links.', auth: 'user',
     handler: ({ user, params }) => {
       const c = getCourse(db, params.id);
       const allowed = user!.role === 'moderator' || c.expert_id === user!.id || (hasActiveEnrollment(db, user!.id, c.id) && isLive(c));
@@ -60,7 +60,7 @@ export function registerLearning(app: App) {
   });
 
   router.add({
-    method: 'POST', path: '/lessons/:id/complete', group: 'Ученик', summary: 'Отметить урок пройденным. Уроки проходятся по порядку.', auth: ['student'],
+    method: 'POST', path: '/lessons/:id/complete', group: 'Student', summary: 'Mark a lesson as completed. Lessons are completed in order.', auth: ['student'],
     handler: ({ user, params }) => {
       const { course } = lessonContext(db, params.id);
       if (!hasActiveEnrollment(db, user!.id, course.id) || !isLive(course)) throw forbidden('Сначала получите доступ к курсу');
@@ -74,7 +74,7 @@ export function registerLearning(app: App) {
   });
 
   router.add({
-    method: 'GET', path: '/lessons/:id/video', group: 'Ученик', summary: 'Видео урока с перемоткой (Range). Для тега <video> токен можно передать как ?token=. Бесплатные уроки опубликованных курсов доступны всем.',
+    method: 'GET', path: '/lessons/:id/video', group: 'Student', summary: 'Lesson video with seeking (Range). For the <video> tag the token may be passed as ?token=. Free lessons of published courses are open to everyone.',
     handler: ctx => {
       const { lesson, course } = lessonContext(db, ctx.params.id);
       const v = db.get('SELECT * FROM videos WHERE lesson_id = ?', lesson.id);
@@ -86,8 +86,8 @@ export function registerLearning(app: App) {
   });
 
   router.add({
-    method: 'POST', path: '/courses/:id/reviews', group: 'Ученик', summary: 'Оставить отзыв о курсе: только после прохождения всех уроков, один на курс, изменить нельзя.', auth: ['student'],
-    body: '{ rating: 1–5, text: 10–1500 символов }',
+    method: 'POST', path: '/courses/:id/reviews', group: 'Student', summary: 'Leave a course review: only after completing all lessons, one per course, cannot be edited.', auth: ['student'],
+    body: '{ rating: 1–5, text: 10–1500 chars }',
     handler: ({ user, params, body }) => {
       const c = getCourse(db, params.id);
       if (!hasActiveEnrollment(db, user!.id, c.id)) throw forbidden('Отзыв может оставить только ученик, купивший курс');
@@ -101,8 +101,8 @@ export function registerLearning(app: App) {
   });
 
   router.add({
-    method: 'POST', path: '/reviews/:id/anchor', group: 'Ученик',
-    summary: 'Сохранить ссылку на транзакцию Solana, в которой зафиксирован отзыв (memo: оценка, курс, хеш текста). Только автор, один раз.', auth: ['student'],
+    method: 'POST', path: '/reviews/:id/anchor', group: 'Student',
+    summary: 'Save a link to the Solana transaction anchoring the review (memo: rating, course, text hash). Author only, once.', auth: ['student'],
     body: '{ signature, wallet, cluster: "devnet" }',
     handler: ({ user, params, body }) => {
       const r = db.get('SELECT * FROM reviews WHERE id = ? AND user_id = ?', params.id, user!.id);
@@ -118,8 +118,8 @@ export function registerLearning(app: App) {
     }
   });
 
-  // ---------- Вопросы и комментарии под уроком ----------
-  // Участники обсуждения: ученики с доступом к курсу, эксперт курса и модератор.
+  // ---------- Lesson questions and comments ----------
+  // Participants: students with access to the course, the course expert and the moderator.
   const commentsAccess = (user: any, lessonId: string) => {
     const ctx = lessonContext(db, lessonId);
     const ok = user.role === 'moderator' || ctx.course.expert_id === user.id || (hasActiveEnrollment(db, user.id, ctx.course.id) && isLive(ctx.course));
@@ -133,7 +133,7 @@ export function registerLearning(app: App) {
   });
 
   router.add({
-    method: 'GET', path: '/lessons/:id/comments', group: 'Ученик', summary: 'Вопросы и комментарии под уроком (ученики курса, эксперт, модератор).', auth: 'user',
+    method: 'GET', path: '/lessons/:id/comments', group: 'Student', summary: 'Lesson questions and comments (course students, expert, moderator).', auth: 'user',
     handler: ({ user, params }) => {
       const { course } = commentsAccess(user, params.id);
       return db.all(`SELECT c.*, u.name AS author, u.role FROM lesson_comments c JOIN users u ON u.id = c.user_id
@@ -142,8 +142,8 @@ export function registerLearning(app: App) {
   });
 
   router.add({
-    method: 'POST', path: '/lessons/:id/comments', group: 'Ученик', summary: 'Задать вопрос или оставить комментарий под уроком. Эксперт курса отвечает здесь же.', auth: 'user',
-    body: '{ text: 2–1000 символов }',
+    method: 'POST', path: '/lessons/:id/comments', group: 'Student', summary: 'Ask a question or leave a comment on a lesson. The course expert replies here too.', auth: 'user',
+    body: '{ text: 2–1000 chars }',
     handler: ({ user, params, body }) => {
       const { course } = commentsAccess(user, params.id);
       const b = parse<{ text: string }>(body, { text: str({ min: 2, max: 1000 }) });
@@ -154,7 +154,7 @@ export function registerLearning(app: App) {
   });
 
   router.add({
-    method: 'DELETE', path: '/lessons/comments/:id', group: 'Ученик', summary: 'Скрыть комментарий: автор, эксперт курса или модератор.', auth: 'user',
+    method: 'DELETE', path: '/lessons/comments/:id', group: 'Student', summary: 'Hide a comment: author, course expert or moderator.', auth: 'user',
     handler: ({ user, params }) => {
       const c = db.get('SELECT * FROM lesson_comments WHERE id = ? AND hidden = 0', params.id);
       if (!c) throw notFound('Комментарий не найден');

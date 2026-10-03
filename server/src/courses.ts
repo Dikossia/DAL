@@ -27,7 +27,7 @@ export function getCourse(db: DB, id: string): Row {
   return c;
 }
 
-// Курс эксперта: чужие курсы выглядят как несуществующие.
+// Expert's own course: other experts' courses look as if they don't exist.
 export function ownCourse(db: DB, user: User, id: string): Row {
   const c = getCourse(db, id);
   if (c.expert_id !== user.id) throw notFound('Курс не найден');
@@ -59,7 +59,7 @@ export function hasActiveEnrollment(db: DB, userId: string, courseId: string): b
   return !!db.get(`SELECT 1 FROM enrollments WHERE user_id = ? AND course_id = ? AND status = 'active'`, userId, courseId);
 }
 
-// Кто может смотреть видео урока.
+// Who may watch a lesson's video.
 export function canWatch(db: DB, user: User | null, course: Row, lesson: Row): boolean {
   if (user?.role === 'moderator') return true;
   if (user && course.expert_id === user.id) return true;
@@ -113,7 +113,7 @@ export function courseStats(db: DB, courseId: string) {
   return { students: s.students, revenue: s.gross, income: s.gross - s.commission, rating: r.avg ? Math.round(r.avg * 100) / 100 : null, reviews: r.n };
 }
 
-// Карточка курса для каталога и списков.
+// Course card for the catalog and lists.
 export function courseCard(db: DB, c: Row) {
   const lessons = lessonsOf(db, c.id);
   const expert = expertBrief(db, c.expert_id);

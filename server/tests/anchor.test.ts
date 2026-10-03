@@ -8,7 +8,7 @@ after(async () => { await t.close(); });
 
 const SIG = '4'.repeat(40) + 'abcdefghijkmnopqrstuvwxyz', WAL = 'BZeSX952nUiCc2vrhn57fnfb5xPD8ynWpwsFXJf7cawt';
 
-test('фиксация прогноза в Solana: один раз, только автор, ссылка видна всем', async () => {
+test('anchoring a forecast on Solana: once, author only, link visible to all', async () => {
   const mine = (await t.api('GET', '/studio/forecasts', { token: aliya })).body.forecasts[0];
   assert.match(mine.memo, new RegExp(`^DAL forecast v1 \\| id=${mine.id} \\| ${mine.ticker} `));
   assert.equal(mine.anchor, null);

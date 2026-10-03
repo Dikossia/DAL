@@ -1,5 +1,5 @@
-// Демонстрационные данные кабинета эксперта Dal Studio.
-// Все имена, суммы, прогнозы и отзывы вымышлены.
+// Demo data for the Dal Studio expert dashboard.
+// All names, amounts, forecasts and reviews are fictional.
 window.STUDIO = {
   expert: {
     id: 'aliya', name: 'Алия Нурланова', role: 'Анализ компаний и портфелей', image: 'avatar-aliya',
@@ -112,7 +112,7 @@ window.STUDIO = {
       { date: '2026-09-23', course: 'c2', student: 'Сабина А.', amount: 14900 }
     ]
   },
-  // Права эксперта: предложение для обсуждения с командой. level: yes | review | no | rule
+  // Expert permissions: a proposal for discussion with the team. level: yes | review | no | rule
   rights: [
     { group: 'Профиль', icon: 'circle-user-round', items: [
       ['Менять описание, специализацию, фото и достижения', 'yes', 'Изменения видны ученикам сразу.'],

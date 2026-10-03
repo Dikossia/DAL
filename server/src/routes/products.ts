@@ -23,7 +23,7 @@ export function registerProducts(app: App) {
      FROM product_reviews r JOIN users u ON u.id = r.user_id WHERE r.product_id = ? AND r.hidden = 0 ORDER BY r.created_at DESC`, productId)
     .map(r => ({ ...r, author: r.author.split(' ')[0] }));
 
-  // Материал: до покупки виден только первый фрагмент.
+  // Material: only the first excerpt is visible before purchase.
   const contentFor = (p: any, full: boolean) => {
     if (kindOf(p) !== 'material') return {};
     const text = String(p.content || '');
@@ -32,9 +32,9 @@ export function registerProducts(app: App) {
     return { content: cut.slice(0, Math.max(cut.lastIndexOf(' '), 1)) + '…', contentLocked: true };
   };
 
-  // ---------- Каталог ----------
+  // ---------- Catalog ----------
   router.add({
-    method: 'GET', path: '/catalog/products', group: 'Каталог', summary: 'Продукты режимов «Работа с экспертом», «Сообщество», «Идеи и аналитика». Параметры: mode, type, q, sort = popular | price | price-desc | new, free=1.',
+    method: 'GET', path: '/catalog/products', group: 'Catalog', summary: 'Products for the "Work with an expert", "Community" and "Ideas & analysis" modes. Params: mode, type, q, sort = popular | price | price-desc | new, free=1.',
     handler: ({ query }) => {
       const mode = query.get('mode'), type = query.get('type'), q = (query.get('q') || '').trim().toLocaleLowerCase('ru'), sort = query.get('sort') || 'popular';
       let rows = db.all(`SELECT p.*, u.name AS expert_name FROM products p JOIN users u ON u.id = p.expert_id WHERE p.status = 'published'`);
@@ -53,7 +53,7 @@ export function registerProducts(app: App) {
   });
 
   router.add({
-    method: 'GET', path: '/catalog/products/:id', group: 'Каталог', summary: 'Страница продукта: описание, ближайшие свободные слоты, начало материала, отзывы.',
+    method: 'GET', path: '/catalog/products/:id', group: 'Catalog', summary: 'Product page: description, upcoming free slots, material excerpt, reviews.',
     handler: ({ params, user }) => {
       const p = getProduct(db, params.id);
       if (p.status !== 'published') throw notFound('Продукт не найден');
@@ -67,10 +67,10 @@ export function registerProducts(app: App) {
     }
   });
 
-  // ---------- Ученик ----------
+  // ---------- Student ----------
   router.add({
-    method: 'POST', path: '/products/:id/buy', group: 'Ученик: продукты',
-    summary: 'Купить продукт (оплата пока не подключена). Для подписки повторная покупка продлевает срок. Цена фиксируется в момент покупки.', auth: S,
+    method: 'POST', path: '/products/:id/buy', group: 'Student: products',
+    summary: 'Buy a product (payment not wired up yet). For subscriptions, buying again extends the period. The price is fixed at purchase time.', auth: S,
     handler: ({ user, params }) => {
       const p = getProduct(db, params.id);
       if (p.status !== 'published') throw notFound('Продукт не найден');
@@ -81,8 +81,8 @@ export function registerProducts(app: App) {
           const base = pu && pu.status === 'active' && pu.expires_at > now.toISOString() ? new Date(pu.expires_at) : now;
           const expires = new Date(base.getTime() + p.period_days * 864e5).toISOString();
           if (pu?.status === 'active') {
-            // Оплата записывается отдельной строкой, чтобы доход за первую покупку не потерялся.
-            // Пока подписка идёт — срок продлевается; после окончания — новый срок от сегодняшнего дня.
+            // The payment is recorded as a separate row so income from the first purchase is not lost.
+            // While the subscription is active the period is extended; after it ends, a new period starts today.
             const live = pu.expires_at > now.toISOString();
             db.run('UPDATE product_purchases SET expires_at = ? WHERE id = ?', expires, pu.id);
             db.run('INSERT INTO product_renewals (id, purchase_id, price_paid, commission, created_at) VALUES (?, ?, ?, ?, ?)', newId(), pu.id, p.price, commission, now.toISOString());
@@ -94,7 +94,7 @@ export function registerProducts(app: App) {
         }
         if (pu?.status === 'active') {
           if (kind === 'sessions' && sessionsBooked(db, pu.id) >= pu.sessions_total) {
-            // Пакет встреч израсходован: покупка нового пакета добавляет встречи.
+            // Session package used up: buying a new package adds sessions.
             const add = p.type === 'consultation' ? 1 : p.sessions;
             db.run('UPDATE product_purchases SET sessions_total = sessions_total + ? WHERE id = ?', add, pu.id);
             db.run('INSERT INTO product_renewals (id, purchase_id, price_paid, commission, created_at) VALUES (?, ?, ?, ?, ?)', newId(), pu.id, p.price, commission, now.toISOString());
@@ -111,8 +111,8 @@ export function registerProducts(app: App) {
   });
 
   router.add({
-    method: 'POST', path: '/products/:id/refund', group: 'Ученик: продукты',
-    summary: `Вернуть пакет встреч: в течение ${PRODUCT_RULES.sessionRefundDays} дней, если ни одна встреча не назначена. Подписки и материалы не возвращаются.`, auth: S,
+    method: 'POST', path: '/products/:id/refund', group: 'Student: products',
+    summary: `Refund a session package: within ${PRODUCT_RULES.sessionRefundDays} days if no session has been booked. Subscriptions and materials are non-refundable.`, auth: S,
     handler: ({ user, params }) => {
       const p = getProduct(db, params.id), pu = activePurchase(db, user!.id, p.id);
       if (!pu) throw notFound('Активная покупка не найдена');
@@ -129,7 +129,7 @@ export function registerProducts(app: App) {
     .map(s => ({ id: s.id, startsAt: s.starts_at, canCancel: new Date(s.starts_at).getTime() - Date.now() >= PRODUCT_RULES.cancelHours * 3600e3 }));
 
   router.add({
-    method: 'GET', path: '/me/products', group: 'Ученик: продукты', summary: 'Мои продукты по режимам: встречи и записи, подписки и сроки, материалы.', auth: S,
+    method: 'GET', path: '/me/products', group: 'Student: products', summary: 'My products by mode: sessions and bookings, subscriptions and periods, materials.', auth: S,
     handler: ({ user }) => db.all(`SELECT p.*, pp.id AS purchase_id FROM product_purchases pp JOIN products p ON p.id = pp.product_id WHERE pp.user_id = ? AND pp.status = 'active' ORDER BY pp.created_at DESC`, user!.id)
       .map(p => {
         const pu = db.get('SELECT * FROM product_purchases WHERE id = ?', p.purchase_id);
@@ -139,7 +139,7 @@ export function registerProducts(app: App) {
   });
 
   router.add({
-    method: 'GET', path: '/learning/products/:id', group: 'Ученик: продукты', summary: 'Купленный продукт: ссылка на встречи, мои записи и свободное время, полный текст материала.', auth: 'user',
+    method: 'GET', path: '/learning/products/:id', group: 'Student: products', summary: 'Purchased product: meeting link, my bookings and free slots, full material text.', auth: 'user',
     handler: ({ user, params }) => {
       const p = getProduct(db, params.id);
       const pu = user!.role === 'student' ? activePurchase(db, user!.id, p.id) : undefined;
@@ -156,7 +156,7 @@ export function registerProducts(app: App) {
   });
 
   router.add({
-    method: 'POST', path: '/products/:id/book', group: 'Ученик: продукты', summary: 'Записаться на свободное время из расписания эксперта. Тратит одну встречу из пакета.', auth: S,
+    method: 'POST', path: '/products/:id/book', group: 'Student: products', summary: 'Book a free slot from the expert\'s schedule. Uses one session from the package.', auth: S,
     body: '{ slotId }',
     handler: ({ user, params, body }) => {
       const p = getProduct(db, params.id);
@@ -177,7 +177,7 @@ export function registerProducts(app: App) {
   });
 
   router.add({
-    method: 'POST', path: '/bookings/:slotId/cancel', group: 'Ученик: продукты', summary: `Отменить запись. Ученик — не позже чем за ${PRODUCT_RULES.cancelHours} часа до встречи, эксперт — в любое время. Встреча возвращается в пакет.`, auth: ['student', 'expert'],
+    method: 'POST', path: '/bookings/:slotId/cancel', group: 'Student: products', summary: `Cancel a booking. Students: at least ${PRODUCT_RULES.cancelHours} hours before the session; experts: any time. The session returns to the package.`, auth: ['student', 'expert'],
     handler: ({ user, params }) => {
       const slot = db.get('SELECT s.*, p.expert_id FROM product_slots s JOIN products p ON p.id = s.product_id WHERE s.id = ?', params.slotId);
       if (!slot || (slot.booked_by !== user!.id && slot.expert_id !== user!.id)) throw notFound('Запись не найдена');
@@ -189,14 +189,14 @@ export function registerProducts(app: App) {
     }
   });
 
-  // ---------- Сообщения клуба и чата ----------
+  // ---------- Club and chat messages ----------
   const canChat = (user: User, p: any) => {
     if (kindOf(p) !== 'subscription') throw conflict('no_chat', 'У этого продукта нет чата');
     if (user.role === 'moderator' || p.expert_id === user.id) return;
     if (!subscriptionLive(activePurchase(db, user.id, p.id))) throw forbidden('Чат доступен участникам с действующей подпиской');
   };
   router.add({
-    method: 'GET', path: '/products/:id/messages', group: 'Ученик: продукты', summary: 'Сообщения клуба или чата (последние 200). Параметр after — только новые после указанного времени.', auth: 'user',
+    method: 'GET', path: '/products/:id/messages', group: 'Student: products', summary: 'Club or chat messages (last 200). Param after: only messages newer than the given time.', auth: 'user',
     handler: ({ user, params, query }) => {
       const p = getProduct(db, params.id); canChat(user!, p);
       const after = query.get('after') || '';
@@ -206,7 +206,7 @@ export function registerProducts(app: App) {
     }
   });
   router.add({
-    method: 'POST', path: '/products/:id/messages', group: 'Ученик: продукты', summary: 'Написать в клуб или чат.', auth: 'user', body: '{ text }',
+    method: 'POST', path: '/products/:id/messages', group: 'Student: products', summary: 'Post to a club or chat.', auth: 'user', body: '{ text }',
     handler: ({ user, params, body }) => {
       const p = getProduct(db, params.id); canChat(user!, p);
       const b = parse<{ text: string }>(body, { text: str({ min: 1, max: PRODUCT_RULES.messageMax }) });
@@ -217,8 +217,8 @@ export function registerProducts(app: App) {
   });
 
   router.add({
-    method: 'POST', path: '/products/:id/reviews', group: 'Ученик: продукты', summary: 'Отзыв о купленном продукте (один на продукт).', auth: S,
-    body: '{ rating: 1–5, text: 10–1500 символов }',
+    method: 'POST', path: '/products/:id/reviews', group: 'Student: products', summary: 'Review a purchased product (one per product).', auth: S,
+    body: '{ rating: 1–5, text: 10–1500 chars }',
     handler: ({ user, params, body }) => {
       const p = getProduct(db, params.id);
       if (!activePurchase(db, user!.id, p.id)) throw forbidden('Отзыв может оставить только купивший ученик');
@@ -230,7 +230,7 @@ export function registerProducts(app: App) {
     }
   });
 
-  // ---------- Студия ----------
+  // ---------- Studio ----------
   const detail = (id: string) => {
     const p = db.get('SELECT * FROM products WHERE id = ?', id)!;
     const purchases = db.get('SELECT COUNT(*) AS n FROM product_purchases WHERE product_id = ?', id)!.n as number;
@@ -245,14 +245,14 @@ export function registerProducts(app: App) {
   };
 
   router.add({
-    method: 'GET', path: '/studio/products', group: 'Студия: продукты', summary: 'Мои продукты всех режимов. Параметры: mode, status.', auth: E,
+    method: 'GET', path: '/studio/products', group: 'Studio: products', summary: 'My products across all modes. Params: mode, status.', auth: E,
     handler: ({ user, query }) => db.all('SELECT * FROM products WHERE expert_id = ? ORDER BY updated_at DESC', user!.id)
       .filter(p => (!query.get('mode') || p.mode === query.get('mode')) && (!query.get('status') || p.status === query.get('status')))
       .map(p => ({ ...productCard(db, p), checklistLeft: productChecklist(db, p).filter(x => !x.ok).length }))
   });
 
   router.add({
-    method: 'POST', path: '/studio/products', group: 'Студия: продукты', summary: 'Создать черновик продукта нужного типа.', auth: E,
+    method: 'POST', path: '/studio/products', group: 'Studio: products', summary: 'Create a product draft of the given type.', auth: E,
     body: `{ type: ${TYPES.join(' | ')}, title? }`,
     handler: ctx => {
       const b = parse<{ type: string; title?: string }>(ctx.body, { type: oneOf(TYPES), title: str({ max: 90, optional: true }) });
@@ -266,12 +266,12 @@ export function registerProducts(app: App) {
   });
 
   router.add({
-    method: 'GET', path: '/studio/products/:id', group: 'Студия: продукты', summary: 'Продукт для редактора: поля, расписание с записями, чек-лист модерации.', auth: E,
+    method: 'GET', path: '/studio/products/:id', group: 'Studio: products', summary: 'Product for the editor: fields, schedule with bookings, moderation checklist.', auth: E,
     handler: ({ user, params }) => { ownProduct(db, user!, params.id); return detail(params.id); }
   });
 
   router.add({
-    method: 'PATCH', path: '/studio/products/:id', group: 'Студия: продукты', summary: 'Изменить продукт. Закрыто на модерации. Новая цена и размер пакета действуют для новых покупок.', auth: E,
+    method: 'PATCH', path: '/studio/products/:id', group: 'Studio: products', summary: 'Update a product. Locked while in moderation. A new price and package size apply to new purchases.', auth: E,
     body: '{ title?, description?, price?, cover?, durationMin?, sessions?, periodDays?, meetingUrl?, scheduleNote?, content? }',
     handler: ({ user, params, body }) => {
       const p = ownProduct(db, user!, params.id);
@@ -300,7 +300,7 @@ export function registerProducts(app: App) {
   });
 
   router.add({
-    method: 'PUT', path: '/studio/products/:id/cover', group: 'Студия: продукты', summary: 'Своя обложка продукта: тело запроса — картинка JPG, PNG или WEBP до 5 МБ.', auth: E, raw: true, body: 'двоичный файл картинки',
+    method: 'PUT', path: '/studio/products/:id/cover', group: 'Studio: products', summary: 'Custom product cover: the request body is a JPG, PNG or WEBP image up to 5 MB.', auth: E, raw: true, body: 'binary image file',
     handler: async ({ user, params, req }) => {
       const p = ownProduct(db, user!, params.id);
       assertProductEditable(p);
@@ -315,7 +315,7 @@ export function registerProducts(app: App) {
   });
 
   router.add({
-    method: 'DELETE', path: '/studio/products/:id', group: 'Студия: продукты', summary: 'Удалить продукт. Нельзя, если его покупали или он на модерации.', auth: E,
+    method: 'DELETE', path: '/studio/products/:id', group: 'Studio: products', summary: 'Delete a product. Not allowed if it has been purchased or is in moderation.', auth: E,
     handler: ({ user, params }) => {
       const p = ownProduct(db, user!, params.id);
       assertProductEditable(p);
@@ -326,32 +326,32 @@ export function registerProducts(app: App) {
   });
 
   const transition = (name: string, summary: string, fn: (p: any, user: User) => void) => router.add({
-    method: 'POST', path: `/studio/products/:id/${name}`, group: 'Студия: продукты', summary, auth: E,
+    method: 'POST', path: `/studio/products/:id/${name}`, group: 'Studio: products', summary, auth: E,
     handler: ({ user, params }) => { const p = ownProduct(db, user!, params.id); db.tx(() => fn(p, user!)); return detail(p.id); }
   });
-  transition('submit', 'Отправить черновик на модерацию: нужны подтверждённый профиль и выполненный чек-лист.', (p, user) => {
+  transition('submit', 'Submit the draft for moderation: requires a verified profile and a completed checklist.', (p, user) => {
     if (p.status !== 'draft') throw conflict('bad_status', 'На модерацию отправляется только черновик');
     assertVerifiedExpert(db, user, 'Отправлять продукты на модерацию');
     const left = productChecklist(db, p).filter(x => !x.ok);
     if (left.length) throw new HttpError(422, 'checklist', 'Продукт ещё не готов к модерации', left.map(x => x.label));
     db.run(`UPDATE products SET status = 'review', submitted_at = ?, moderation_note = NULL, updated_at = ? WHERE id = ?`, nowIso(), nowIso(), p.id);
   });
-  transition('withdraw', 'Отозвать продукт с модерации.', p => {
+  transition('withdraw', 'Withdraw the product from moderation.', p => {
     if (p.status !== 'review') throw conflict('bad_status', 'Продукт не на модерации');
     db.run(`UPDATE products SET status = 'draft', submitted_at = NULL, updated_at = ? WHERE id = ?`, nowIso(), p.id);
   });
-  transition('hide', 'Скрыть из каталога. Купившие сохраняют доступ.', p => {
+  transition('hide', 'Hide from the catalog. Buyers keep access.', p => {
     if (p.status !== 'published') throw conflict('bad_status', 'Скрыть можно только продукт из каталога');
     db.run(`UPDATE products SET status = 'hidden', updated_at = ? WHERE id = ?`, nowIso(), p.id);
   });
-  transition('unhide', 'Вернуть скрытый продукт в каталог.', p => {
+  transition('unhide', 'Return a hidden product to the catalog.', p => {
     if (p.status !== 'hidden') throw conflict('bad_status', 'Продукт не скрыт');
     db.run(`UPDATE products SET status = 'published', updated_at = ? WHERE id = ?`, nowIso(), p.id);
   });
 
   router.add({
-    method: 'POST', path: '/studio/products/:id/slots', group: 'Студия: продукты', summary: `Добавить время в расписание встреч (от часа до ${PRODUCT_RULES.slotMaxDays} дней вперёд). Можно и в опубликованный продукт, и на модерации.`, auth: E,
-    body: '{ startsAt: дата и время ISO 8601 }',
+    method: 'POST', path: '/studio/products/:id/slots', group: 'Studio: products', summary: `Add a slot to the session schedule (from one hour up to ${PRODUCT_RULES.slotMaxDays} days ahead). Works for published products and products in moderation.`, auth: E,
+    body: '{ startsAt: ISO 8601 date-time }',
     handler: ({ user, params, body }) => {
       const p = ownProduct(db, user!, params.id);
       if (kindOf(p) !== 'sessions') throw conflict('not_sessions', 'Расписание есть только у встреч');
@@ -367,7 +367,7 @@ export function registerProducts(app: App) {
   });
 
   router.add({
-    method: 'DELETE', path: '/studio/slots/:id', group: 'Студия: продукты', summary: 'Убрать свободное время из расписания. Занятое время сначала отмените — ученику вернётся встреча.', auth: E,
+    method: 'DELETE', path: '/studio/slots/:id', group: 'Studio: products', summary: 'Remove a free slot from the schedule. Cancel a booked slot first; the student gets the session back.', auth: E,
     handler: ({ user, params }) => {
       const s = db.get('SELECT s.*, p.expert_id FROM product_slots s JOIN products p ON p.id = s.product_id WHERE s.id = ?', params.id);
       if (!s || s.expert_id !== user!.id) throw notFound('Время не найдено');
@@ -378,21 +378,21 @@ export function registerProducts(app: App) {
   });
 
   router.add({
-    method: 'GET', path: '/studio/bookings', group: 'Студия: продукты', summary: 'Ближайшие встречи со всеми записями учеников.', auth: E,
+    method: 'GET', path: '/studio/bookings', group: 'Studio: products', summary: 'Upcoming sessions with all student bookings.', auth: E,
     handler: ({ user }) => db.all(
       `SELECT s.id, s.starts_at, p.id AS product_id, p.title, p.duration_min, p.meeting_url, u.name FROM product_slots s JOIN products p ON p.id = s.product_id JOIN users u ON u.id = s.booked_by
        WHERE p.expert_id = ? AND s.starts_at > ? ORDER BY s.starts_at LIMIT 50`, user!.id, new Date(Date.now() - 2 * 3600e3).toISOString())
       .map(s => ({ slotId: s.id, startsAt: s.starts_at, productId: s.product_id, title: s.title, durationMin: s.duration_min, meetingUrl: s.meeting_url, student: shortName(s.name) }))
   });
 
-  // ---------- Модерация продуктов ----------
+  // ---------- Product moderation ----------
   const inReview = (id: string) => { const p = getProduct(db, id); if (p.status !== 'review') throw conflict('bad_status', 'Продукт не на модерации'); return p; };
   router.add({
-    method: 'GET', path: '/moderation/products/:id', group: 'Модерация', summary: 'Продукт целиком для проверки: текст, расписание, ссылки, чек-лист.', auth: ['moderator'],
+    method: 'GET', path: '/moderation/products/:id', group: 'Moderation', summary: 'Full product for review: text, schedule, links, checklist.', auth: ['moderator'],
     handler: ({ params }) => { getProduct(db, params.id); return detail(params.id); }
   });
   router.add({
-    method: 'POST', path: '/moderation/products/:id/approve', group: 'Модерация', summary: 'Одобрить продукт: он появится в каталоге.', auth: ['moderator'],
+    method: 'POST', path: '/moderation/products/:id/approve', group: 'Moderation', summary: 'Approve a product: it appears in the catalog.', auth: ['moderator'],
     handler: ({ params }) => {
       const p = inReview(params.id);
       db.run(`UPDATE products SET status = 'published', published_at = COALESCE(published_at, ?), moderation_note = NULL, updated_at = ? WHERE id = ?`, nowIso(), nowIso(), p.id);
@@ -400,7 +400,7 @@ export function registerProducts(app: App) {
     }
   });
   router.add({
-    method: 'POST', path: '/moderation/products/:id/reject', group: 'Модерация', summary: 'Вернуть продукт эксперту с комментарием.', auth: ['moderator'], body: '{ note }',
+    method: 'POST', path: '/moderation/products/:id/reject', group: 'Moderation', summary: 'Return a product to the expert with a comment.', auth: ['moderator'], body: '{ note }',
     handler: ({ params, body }) => {
       const p = inReview(params.id);
       const b = parse<{ note: string }>(body, { note: str({ min: 5, max: 1000 }) });
@@ -409,25 +409,25 @@ export function registerProducts(app: App) {
     }
   });
 
-  // ---------- Избранное и фото профиля ----------
+  // ---------- Favorites and profile photo ----------
   router.add({
-    method: 'GET', path: '/me/favorites', group: 'Вход', summary: 'Избранное: идентификаторы курсов и продуктов.', auth: 'user',
+    method: 'GET', path: '/me/favorites', group: 'Account', summary: 'Favorites: course and product ids.', auth: 'user',
     handler: ({ user }) => db.all<{ item_id: string }>('SELECT item_id FROM favorites WHERE user_id = ? ORDER BY created_at', user!.id).map(r => r.item_id)
   });
   router.add({
-    method: 'PUT', path: '/me/favorites/:id', group: 'Вход', summary: 'Добавить курс или продукт в избранное.', auth: 'user',
+    method: 'PUT', path: '/me/favorites/:id', group: 'Account', summary: 'Add a course or product to favorites.', auth: 'user',
     handler: ({ user, params }) => {
       if (!db.get('SELECT 1 FROM courses WHERE id = ? UNION SELECT 1 FROM products WHERE id = ?', params.id, params.id)) throw notFound('Курс или продукт не найден');
       db.run('INSERT OR IGNORE INTO favorites (user_id, item_id, created_at) VALUES (?, ?, ?)', user!.id, params.id, nowIso());
     }
   });
   router.add({
-    method: 'DELETE', path: '/me/favorites/:id', group: 'Вход', summary: 'Убрать из избранного.', auth: 'user',
+    method: 'DELETE', path: '/me/favorites/:id', group: 'Account', summary: 'Remove from favorites.', auth: 'user',
     handler: ({ user, params }) => { db.run('DELETE FROM favorites WHERE user_id = ? AND item_id = ?', user!.id, params.id); }
   });
 
   router.add({
-    method: 'PUT', path: '/me/avatar', group: 'Вход', summary: 'Загрузить своё фото: тело запроса — картинка JPG, PNG или WEBP до 5 МБ.', auth: 'user', raw: true, body: 'двоичный файл картинки',
+    method: 'PUT', path: '/me/avatar', group: 'Account', summary: 'Upload own photo: the request body is a JPG, PNG or WEBP image up to 5 MB.', auth: 'user', raw: true, body: 'binary image file',
     handler: async ({ user, req }) => {
       const ext = IMAGE_TYPES[String(req.headers['content-type'] || '').split(';')[0]];
       if (!ext) throw new HttpError(415, 'unsupported_type', 'Нужна картинка JPG, PNG или WEBP');
@@ -440,7 +440,7 @@ export function registerProducts(app: App) {
     }
   });
   router.add({
-    method: 'DELETE', path: '/me/avatar', group: 'Вход', summary: 'Убрать своё фото.', auth: 'user',
+    method: 'DELETE', path: '/me/avatar', group: 'Account', summary: 'Remove own photo.', auth: 'user',
     handler: ({ user }) => {
       const old = db.get('SELECT avatar_file FROM users WHERE id = ?', user!.id)?.avatar_file;
       db.run('UPDATE users SET avatar_file = NULL WHERE id = ?', user!.id);
@@ -448,7 +448,7 @@ export function registerProducts(app: App) {
     }
   });
   router.add({
-    method: 'GET', path: '/media/avatars/:file', group: 'Служебное', summary: 'Фото профилей.',
+    method: 'GET', path: '/media/avatars/:file', group: 'System', summary: 'Profile photos.',
     handler: ctx => {
       if (!/^[\w-]+\.(jpg|png|webp)$/.test(ctx.params.file)) throw notFound();
       sendFile(ctx.req, ctx.res, path.join(app.storageDir, 'avatars', ctx.params.file));

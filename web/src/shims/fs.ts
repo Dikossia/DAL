@@ -1,4 +1,4 @@
-// Виртуальная файловая система в памяти браузера: загруженные файлы сохраняются в IndexedDB.
+// In-memory virtual file system in the browser: uploaded files are persisted to IndexedDB.
 export const vfs = new Map<string, Blob | string>();
 export const hooks: { onSet?: (p: string, v: Blob | string) => void; onDelete?: (p: string) => void } = {};
 const norm = (p: string) => ('/' + String(p)).replace(/\/+/g, '/');

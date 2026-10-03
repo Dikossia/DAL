@@ -10,7 +10,7 @@
   const DEMO = [['student@dal.local', 'Ученик', 'Дарын Асылбек'], ['aliya@dal.local', 'Эксперт', 'Алия Нурланова'], ['moderator@dal.local', 'Модератор', 'Модератор Dal']];
   let tab = params.get('mode') === 'register' ? 'register' : 'login', busy = false;
 
-  // Тема: как в настройках сайта, иначе как в системе.
+  // Theme: from the site settings, otherwise follow the system.
   let theme = 'system';
   try { theme = JSON.parse(localStorage.getItem('dal-live-prefs') || '{}').theme || 'system'; } catch (_) { /* по умолчанию */ }
   const dark = theme === 'dark' || (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
@@ -18,7 +18,7 @@
   document.documentElement.style.setProperty('--accent', dark ? '#9cc9cc' : '#2f5d62');
   document.documentElement.style.setProperty('--soft', dark ? 'color-mix(in srgb, #9cc9cc 12%, #1d2420)' : 'color-mix(in srgb, #2f5d62 8%, white)');
 
-  // Куда вести после входа: только на страницы этого же сайта.
+  // Where to go after sign-in: only pages on this same site.
   const next = role => {
     const n = params.get('next');
     return n && n.startsWith('/') && !n.startsWith('//') && !n.startsWith('/login') ? n : api.homeFor(role);

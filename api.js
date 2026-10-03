@@ -1,5 +1,5 @@
-// Клиент API Dal: общий для сайта учеников, Dal Studio и страницы входа.
-// Сайты открываются с того же адреса, что и сервер (http://localhost:4000), поэтому пути относительные.
+// Dal API client shared by the student site, Dal Studio and the login page.
+// The sites are served from the same origin as the server (http://localhost:4000), so paths are relative.
 window.DalAPI = (() => {
   'use strict';
   const KEY = 'dal-token';
@@ -16,7 +16,7 @@ window.DalAPI = (() => {
     try { t ? localStorage.setItem(KEY, t) : localStorage.removeItem(KEY); } catch (_) { /* ничего */ }
   }
 
-  // Режим «сервер в браузере» (web/dal-local.js): запрос обрабатывает тот же код сервера прямо на странице.
+  // "Server in the browser" mode (web/dal-local.js): the same server code handles the request right in the page.
   const local = () => window.DalLocal && window.DalLocal.enabled;
   async function localRequest(method, path, body, headers = {}) {
     let r;
@@ -49,7 +49,7 @@ window.DalAPI = (() => {
     return data;
   }
 
-  // Загрузка файла телом запроса с настоящим прогрессом. Возвращает { promise, abort }.
+  // Uploads a file as the request body with real progress. Returns { promise, abort }.
   function upload(path, file, { type, headers = {}, onProgress } = {}) {
     if (local()) {
       const promise = localRequest('PUT', path, file, { 'content-type': type || file.type || 'application/octet-stream', 'content-length': String(file.size), ...headers })
@@ -96,7 +96,7 @@ window.DalAPI = (() => {
     hasToken: () => !!token,
     setToken: t => { meCache = null; setToken(t); },
     async logout() { try { await request('POST', '/auth/logout'); } catch (_) { /* токен уже недействителен */ } meCache = null; setToken(null); },
-    // Тег <video> не умеет передавать заголовок, поэтому токен добавляется в адрес.
+    // The <video> tag cannot send headers, so the token is appended to the URL.
     mediaUrl: p => p && token ? `${p}${p.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}` : p,
     loginUrl: (next = location.pathname + location.hash) => `/login.html?next=${encodeURIComponent(next)}`,
     homeFor: role => role === 'student' ? '/' : role === 'moderator' ? '/studio.html#moderation' : '/studio.html'

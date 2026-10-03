@@ -47,9 +47,9 @@ export function registerStudioCourses(app: App) {
     if (isLive(c)) throw conflict('course_live', `${what} нельзя: курс уже продаётся и ученики его проходят.`);
   };
 
-  // ----- Курсы -----
+  // ----- Courses -----
   router.add({
-    method: 'GET', path: '/studio/courses', group: 'Студия: курсы', summary: 'Мои курсы во всех статусах.', auth: E,
+    method: 'GET', path: '/studio/courses', group: 'Studio: courses', summary: 'My courses in all statuses.', auth: E,
     handler: ({ user, query }) => {
       const status = query.get('status');
       return db.all('SELECT * FROM courses WHERE expert_id = ? ORDER BY updated_at DESC', user!.id)
@@ -59,7 +59,7 @@ export function registerStudioCourses(app: App) {
   });
 
   router.add({
-    method: 'POST', path: '/studio/courses', group: 'Студия: курсы', summary: 'Создать черновик курса (с первым модулем).', auth: E,
+    method: 'POST', path: '/studio/courses', group: 'Studio: courses', summary: 'Create a course draft (with a first module).', auth: E,
     body: '{ title?, category? }',
     handler: ctx => {
       const { user, body } = ctx;
@@ -75,13 +75,13 @@ export function registerStudioCourses(app: App) {
   });
 
   router.add({
-    method: 'GET', path: '/studio/courses/:id', group: 'Студия: курсы', summary: 'Курс для редактора: программа, видео, чек-лист модерации, что сейчас разрешено.', auth: E,
+    method: 'GET', path: '/studio/courses/:id', group: 'Studio: courses', summary: 'Course for the editor: curriculum, videos, moderation checklist, currently allowed actions.', auth: E,
     handler: ({ user, params }) => { ownCourse(db, user!, params.id); return detail(params.id); }
   });
 
   router.add({
-    method: 'PATCH', path: '/studio/courses/:id', group: 'Студия: курсы', summary: 'Изменить название, направление, описание, цену или обложку из библиотеки. Закрыто, пока курс на модерации. Новая цена действует для новых покупок.', auth: E,
-    body: '{ title?, category?, description?, price? (тенге, null — не указана), cover? ("foundations" | "analytics" | "workshop" | null) }',
+    method: 'PATCH', path: '/studio/courses/:id', group: 'Studio: courses', summary: 'Change the title, category, description, price or library cover. Locked while the course is in moderation. A new price applies to new purchases.', auth: E,
+    body: '{ title?, category?, description?, price? (tenge, null = not set), cover? ("foundations" | "analytics" | "workshop" | null) }',
     handler: ({ user, params, body }) => {
       const c = ownCourse(db, user!, params.id);
       assertEditable(c);
@@ -101,8 +101,8 @@ export function registerStudioCourses(app: App) {
   });
 
   router.add({
-    method: 'PUT', path: '/studio/courses/:id/cover', group: 'Студия: курсы', summary: 'Загрузить свою обложку. Тело запроса — сам файл (JPG, PNG или WEBP до 5 МБ), Content-Type картинки.', auth: E, raw: true,
-    body: 'двоичный файл картинки',
+    method: 'PUT', path: '/studio/courses/:id/cover', group: 'Studio: courses', summary: 'Upload a custom cover. The request body is the file itself (JPG, PNG or WEBP up to 5 MB) with the image Content-Type.', auth: E, raw: true,
+    body: 'binary image file',
     handler: async ({ user, params, req }) => {
       const c = ownCourse(db, user!, params.id);
       assertEditable(c);
@@ -119,7 +119,7 @@ export function registerStudioCourses(app: App) {
   });
 
   router.add({
-    method: 'DELETE', path: '/studio/courses/:id', group: 'Студия: курсы', summary: 'Удалить курс вместе с видео. Нельзя, если курс купили или он на модерации.', auth: E,
+    method: 'DELETE', path: '/studio/courses/:id', group: 'Studio: courses', summary: 'Delete a course together with its videos. Not allowed if the course has been purchased or is in moderation.', auth: E,
     handler: ({ user, params }) => {
       const c = ownCourse(db, user!, params.id);
       assertEditable(c);
@@ -131,34 +131,34 @@ export function registerStudioCourses(app: App) {
     }
   });
 
-  // ----- Жизненный цикл -----
+  // ----- Lifecycle -----
   const transition = (p: string, summary: string, fn: (c: any, user: User) => void) => router.add({
-    method: 'POST', path: `/studio/courses/:id/${p}`, group: 'Студия: курсы', summary, auth: E,
+    method: 'POST', path: `/studio/courses/:id/${p}`, group: 'Studio: courses', summary, auth: E,
     handler: ({ user, params }) => { const c = ownCourse(db, user!, params.id); db.tx(() => fn(c, user!)); return detail(c.id); }
   });
-  transition('submit', 'Отправить черновик на модерацию. Нужны подтверждённый профиль и выполненный чек-лист.', (c, user) => {
+  transition('submit', 'Submit the draft for moderation. Requires a verified profile and a completed checklist.', (c, user) => {
     if (c.status !== 'draft') throw conflict('bad_status', 'На модерацию отправляется только черновик');
     assertVerifiedExpert(db, user, 'Отправлять курсы на модерацию');
     const left = checklist(c, lessonsOf(db, c.id)).filter(x => !x.ok);
     if (left.length) throw new HttpError(422, 'checklist', 'Курс ещё не готов к модерации', left.map(x => x.label));
     db.run(`UPDATE courses SET status = 'review', submitted_at = ?, moderation_note = NULL, updated_at = ? WHERE id = ?`, nowIso(), nowIso(), c.id);
   });
-  transition('withdraw', 'Отозвать курс с модерации обратно в черновики.', c => {
+  transition('withdraw', 'Withdraw the course from moderation back to drafts.', c => {
     if (c.status !== 'review') throw conflict('bad_status', 'Курс не на модерации');
     db.run(`UPDATE courses SET status = 'draft', submitted_at = NULL, updated_at = ? WHERE id = ?`, nowIso(), c.id);
   });
-  transition('hide', 'Скрыть курс из каталога. Купившие сохраняют доступ.', c => {
+  transition('hide', 'Hide the course from the catalog. Buyers keep access.', c => {
     if (c.status !== 'published') throw conflict('bad_status', 'Скрыть можно только курс из каталога');
     db.run(`UPDATE courses SET status = 'hidden', updated_at = ? WHERE id = ?`, nowIso(), c.id);
   });
-  transition('unhide', 'Вернуть скрытый курс в каталог.', c => {
+  transition('unhide', 'Return a hidden course to the catalog.', c => {
     if (c.status !== 'hidden') throw conflict('bad_status', 'Курс не скрыт');
     db.run(`UPDATE courses SET status = 'published', updated_at = ? WHERE id = ?`, nowIso(), c.id);
   });
 
-  // ----- Модули -----
+  // ----- Modules -----
   router.add({
-    method: 'POST', path: '/studio/courses/:id/modules', group: 'Студия: программа', summary: 'Добавить модуль. В опубликованный курс тоже можно.', auth: E,
+    method: 'POST', path: '/studio/courses/:id/modules', group: 'Studio: curriculum', summary: 'Add a module. Also allowed for published courses.', auth: E,
     body: '{ title? }',
     handler: ({ user, params, body }) => {
       const c = ownCourse(db, user!, params.id);
@@ -172,7 +172,7 @@ export function registerStudioCourses(app: App) {
   });
 
   router.add({
-    method: 'PATCH', path: '/studio/modules/:id', group: 'Студия: программа', summary: 'Переименовать модуль.', auth: E,
+    method: 'PATCH', path: '/studio/modules/:id', group: 'Studio: curriculum', summary: 'Rename a module.', auth: E,
     body: '{ title }',
     handler: ({ user, params, body }) => {
       const { course } = ownModule(user!, params.id);
@@ -185,7 +185,7 @@ export function registerStudioCourses(app: App) {
   });
 
   router.add({
-    method: 'DELETE', path: '/studio/modules/:id', group: 'Студия: программа', summary: 'Удалить модуль с уроками и видео. Только в черновике; последний модуль удалить нельзя.', auth: E,
+    method: 'DELETE', path: '/studio/modules/:id', group: 'Studio: curriculum', summary: 'Delete a module with its lessons and videos. Drafts only; the last module cannot be deleted.', auth: E,
     handler: ({ user, params }) => {
       const { course } = ownModule(user!, params.id);
       assertDraft(course, 'Удалять модули');
@@ -198,9 +198,9 @@ export function registerStudioCourses(app: App) {
     }
   });
 
-  // ----- Уроки -----
+  // ----- Lessons -----
   router.add({
-    method: 'POST', path: '/studio/modules/:id/lessons', group: 'Студия: программа', summary: 'Добавить урок в модуль.', auth: E,
+    method: 'POST', path: '/studio/modules/:id/lessons', group: 'Studio: curriculum', summary: 'Add a lesson to a module.', auth: E,
     body: '{ title? }',
     handler: ({ user, params, body }) => {
       const { course } = ownModule(user!, params.id);
@@ -215,7 +215,7 @@ export function registerStudioCourses(app: App) {
   });
 
   router.add({
-    method: 'PATCH', path: '/studio/lessons/:id', group: 'Студия: программа', summary: `Переименовать урок или открыть его бесплатно (не больше ${RULES.maxFreeLessons} в курсе).`, auth: E,
+    method: 'PATCH', path: '/studio/lessons/:id', group: 'Studio: curriculum', summary: `Rename a lesson or make it free (at most ${RULES.maxFreeLessons} per course).`, auth: E,
     body: '{ title?, isFree? }',
     handler: ({ user, params, body }) => {
       const { lesson, course } = ownLesson(db, user!, params.id);
@@ -235,7 +235,7 @@ export function registerStudioCourses(app: App) {
   });
 
   router.add({
-    method: 'POST', path: '/studio/lessons/:id/move', group: 'Студия: программа', summary: 'Переставить урок выше или ниже внутри модуля.', auth: E,
+    method: 'POST', path: '/studio/lessons/:id/move', group: 'Studio: curriculum', summary: 'Move a lesson up or down within its module.', auth: E,
     body: '{ direction: "up" | "down" }',
     handler: ({ user, params, body }) => {
       const { lesson, course } = ownLesson(db, user!, params.id);
@@ -254,7 +254,7 @@ export function registerStudioCourses(app: App) {
   });
 
   router.add({
-    method: 'DELETE', path: '/studio/lessons/:id', group: 'Студия: программа', summary: 'Удалить урок с видео. Только в черновике: из опубликованного курса уроки не удаляются.', auth: E,
+    method: 'DELETE', path: '/studio/lessons/:id', group: 'Studio: curriculum', summary: 'Delete a lesson with its video. Drafts only: lessons are never removed from a published course.', auth: E,
     handler: ({ user, params }) => {
       const { lesson, course } = ownLesson(db, user!, params.id);
       assertDraft(course, 'Удалять уроки');
@@ -265,11 +265,11 @@ export function registerStudioCourses(app: App) {
     }
   });
 
-  // ----- Видео -----
+  // ----- Video -----
   router.add({
-    method: 'PUT', path: '/studio/lessons/:id/video', group: 'Студия: видео',
-    summary: 'Загрузить или заменить видео урока. Тело запроса — сам файл (MP4, MOV или WEBM до 4 ГБ). Заголовки: Content-Type видео, X-File-Name (имя файла, закодированное encodeURIComponent), X-Duration (секунды, если известны).',
-    auth: E, raw: true, body: 'двоичный файл видео',
+    method: 'PUT', path: '/studio/lessons/:id/video', group: 'Studio: video',
+    summary: 'Upload or replace a lesson video. The request body is the file itself (MP4, MOV or WEBM up to 4 GB). Headers: video Content-Type, X-File-Name (file name encoded with encodeURIComponent), X-Duration (seconds, if known).',
+    auth: E, raw: true, body: 'binary video file',
     handler: async ({ user, params, req }) => {
       const { lesson, course } = ownLesson(db, user!, params.id);
       assertEditable(course);
@@ -277,11 +277,11 @@ export function registerStudioCourses(app: App) {
       const ext = VIDEO_TYPES[type];
       if (!ext) throw new HttpError(415, 'unsupported_type', 'Нужен видеофайл MP4, MOV или WEBM');
       let original = 'video' + ext;
-      try { if (req.headers['x-file-name']) original = decodeURIComponent(String(req.headers['x-file-name'])).slice(0, 200); } catch { /* имя оставим по умолчанию */ }
+      try { if (req.headers['x-file-name']) original = decodeURIComponent(String(req.headers['x-file-name'])).slice(0, 200); } catch { /* keep the default name */ }
       const dur = Number(req.headers['x-duration']);
-      const file = `${course.id}/${lesson.id}-${Date.now()}${ext}`;  // в базе всегда с «/», независимо от системы
+      const file = `${course.id}/${lesson.id}-${Date.now()}${ext}`;  // always stored with "/" in the DB, regardless of OS
       const size = await receiveFile(req, path.join(app.storageDir, 'videos', file), RULES.maxVideoBytes);
-      // Пока файл загружался, курс могли отправить на модерацию или удалить урок.
+      // While the file was uploading, the course may have been submitted for moderation or the lesson deleted.
       const fresh = db.get('SELECT c.status FROM lessons l JOIN modules m ON m.id = l.module_id JOIN courses c ON c.id = m.course_id WHERE l.id = ?', lesson.id);
       if (!fresh || fresh.status === 'review') {
         removeVideoFile(app, file);
@@ -300,7 +300,7 @@ export function registerStudioCourses(app: App) {
   });
 
   router.add({
-    method: 'DELETE', path: '/studio/lessons/:id/video', group: 'Студия: видео', summary: 'Удалить видео урока. Только в черновике: в опубликованном курсе видео можно только заменить.', auth: E,
+    method: 'DELETE', path: '/studio/lessons/:id/video', group: 'Studio: video', summary: 'Delete a lesson video. Drafts only: in a published course a video can only be replaced.', auth: E,
     handler: ({ user, params }) => {
       const { lesson, course } = ownLesson(db, user!, params.id);
       assertEditable(course);

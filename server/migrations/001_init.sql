@@ -1,7 +1,7 @@
--- Dal: схема первого этапа.
--- Пишется на SQL, близком к стандартному, чтобы перенос на PostgreSQL был механическим:
--- TEXT-идентификаторы → uuid, INTEGER 0/1 → boolean, TEXT-даты → timestamptz/date,
--- триггеры RAISE(ABORT) → функции plpgsql с RAISE EXCEPTION.
+-- Dal: stage 1 schema.
+-- Written in near-standard SQL so that porting to PostgreSQL is mechanical:
+-- TEXT ids → uuid, INTEGER 0/1 → boolean, TEXT dates → timestamptz/date,
+-- RAISE(ABORT) triggers → plpgsql functions with RAISE EXCEPTION.
 
 CREATE TABLE users (
   id            TEXT PRIMARY KEY,
@@ -20,15 +20,15 @@ CREATE TABLE sessions (
 );
 CREATE INDEX sessions_user ON sessions(user_id);
 
--- Публичный профиль эксперта. Имя хранится в users.name и меняется только через модерацию.
+-- Public expert profile. The name lives in users.name and changes only through moderation.
 CREATE TABLE expert_profiles (
   user_id        TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   specialization TEXT NOT NULL DEFAULT '',
   bio            TEXT NOT NULL DEFAULT '',
   experience     TEXT NOT NULL DEFAULT '',
-  achievements   TEXT NOT NULL DEFAULT '[]',  -- JSON-массив строк
+  achievements   TEXT NOT NULL DEFAULT '[]',  -- JSON array of strings
   avatar         TEXT,
-  verified_at    TEXT                          -- NULL: личность и счёт ещё не подтверждены
+  verified_at    TEXT                          -- NULL: identity and payout account not yet verified
 );
 
 CREATE TABLE profile_requests (
@@ -48,8 +48,8 @@ CREATE TABLE courses (
   title           TEXT NOT NULL DEFAULT '',
   category        TEXT NOT NULL DEFAULT 'beginner' CHECK (category IN ('beginner', 'advanced', 'workshops')),
   description     TEXT NOT NULL DEFAULT '',
-  price           INTEGER CHECK (price IS NULL OR price >= 0),  -- в тенге; NULL — цена не указана
-  cover           TEXT,                                          -- ключ библиотеки или 'upload:<файл>'
+  price           INTEGER CHECK (price IS NULL OR price >= 0),  -- in tenge; NULL means no price set
+  cover           TEXT,                                          -- library key or 'upload:<file>'
   status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published', 'hidden')),
   moderation_note TEXT,
   submitted_at    TEXT,
@@ -80,17 +80,17 @@ CREATE INDEX lessons_module ON lessons(module_id, position);
 
 CREATE TABLE videos (
   lesson_id             TEXT PRIMARY KEY REFERENCES lessons(id) ON DELETE CASCADE,
-  file_name             TEXT NOT NULL,   -- путь внутри storage/videos или 'seed:<файл>'
+  file_name             TEXT NOT NULL,   -- path inside storage/videos or 'seed:<file>'
   original_name         TEXT NOT NULL,
   mime                  TEXT NOT NULL,
   size                  INTEGER NOT NULL CHECK (size > 0),
-  duration              REAL,            -- секунды, если удалось определить
+  duration              REAL,            -- seconds, if it could be determined
   uploaded_at           TEXT NOT NULL,
   updated_after_publish INTEGER NOT NULL DEFAULT 0 CHECK (updated_after_publish IN (0, 1))
 );
 
--- Покупка (в первом этапе без оплаты). Цена фиксируется в момент покупки:
--- смена цены курса действует только для новых покупок.
+-- Purchase (no payment in stage 1). The price is fixed at purchase time:
+-- a course price change only affects new purchases.
 CREATE TABLE enrollments (
   id          TEXT PRIMARY KEY,
   user_id     TEXT NOT NULL REFERENCES users(id),
@@ -120,7 +120,7 @@ CREATE TABLE reviews (
   created_at TEXT NOT NULL,
   reply      TEXT,
   replied_at TEXT,
-  hidden     INTEGER NOT NULL DEFAULT 0 CHECK (hidden IN (0, 1)),  -- скрыт модерацией по жалобе
+  hidden     INTEGER NOT NULL DEFAULT 0 CHECK (hidden IN (0, 1)),  -- hidden by moderation after a report
   UNIQUE (course_id, user_id)
 );
 
@@ -143,7 +143,7 @@ CREATE TABLE forecasts (
   direction    TEXT NOT NULL CHECK (direction IN ('up', 'down')),
   start_price  REAL NOT NULL CHECK (start_price > 0),
   target_price REAL NOT NULL CHECK (target_price > 0),
-  deadline     TEXT NOT NULL,              -- дата проверки, YYYY-MM-DD
+  deadline     TEXT NOT NULL,              -- check date, YYYY-MM-DD
   rationale    TEXT NOT NULL,
   status       TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'success', 'miss')),
   result_price REAL,
@@ -153,10 +153,10 @@ CREATE TABLE forecasts (
   CHECK ((direction = 'up' AND target_price > start_price) OR (direction = 'down' AND target_price < start_price))
 );
 CREATE INDEX forecasts_expert ON forecasts(expert_id, status);
--- По одному тикеру у эксперта может быть только один открытый прогноз.
+-- An expert may have only one open forecast per ticker.
 CREATE UNIQUE INDEX forecasts_one_active_per_ticker ON forecasts(expert_id, ticker) WHERE status = 'active';
 
--- Опубликованный прогноз нельзя изменить или удалить. Итог выставляется один раз.
+-- A published forecast cannot be changed or deleted. The outcome is set once.
 CREATE TRIGGER forecasts_no_delete BEFORE DELETE ON forecasts
 BEGIN SELECT RAISE(ABORT, 'forecast_immutable'); END;
 
@@ -175,12 +175,12 @@ CREATE TABLE forecast_comments (
   created_at  TEXT NOT NULL
 );
 
--- Курс, который кто-то купил, удалить нельзя (только скрыть).
+-- A course someone has bought cannot be deleted (only hidden).
 CREATE TRIGGER courses_keep_purchased BEFORE DELETE ON courses
 WHEN EXISTS (SELECT 1 FROM enrollments WHERE course_id = OLD.id)
 BEGIN SELECT RAISE(ABORT, 'course_has_students'); END;
 
--- Отзывы не удаляются: при нарушении модерация скрывает их флагом hidden.
--- Отзыв оставляет только купивший ученик, а купленный курс удалить нельзя, поэтому каскад сюда не доходит.
+-- Reviews are never deleted: on violation, moderation hides them with the hidden flag.
+-- Only a buyer can leave a review, and a purchased course cannot be deleted, so the cascade never reaches here.
 CREATE TRIGGER reviews_no_delete BEFORE DELETE ON reviews
 BEGIN SELECT RAISE(ABORT, 'review_immutable'); END;

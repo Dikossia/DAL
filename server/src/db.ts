@@ -32,7 +32,7 @@ export function openDb(file: string): DB {
     get: (sql, ...p) => stmt(sql).get(...norm(p)) as any,
     run: (sql, ...p) => stmt(sql).run(...norm(p)),
     exec: sql => db.exec(sql),
-    // Транзакции синхронные: node:sqlite работает синхронно, внутри tx не должно быть await.
+    // Transactions are synchronous: node:sqlite is synchronous, so there must be no await inside tx.
     tx(fn) {
       if (depth > 0) return fn();
       depth++;

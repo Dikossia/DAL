@@ -1,8 +1,8 @@
 (() => {
   'use strict';
-  // Сайт для учеников, подключённый к серверу Dal.
-  // Всё берётся из API: курсы, консультации, клубы и чаты, идеи и обзоры, эксперты, прогнозы, избранное.
-  // В браузере хранятся только настройки вида (и избранное, пока вы не вошли).
+  // Student-facing site, connected to the Dal server.
+  // Everything comes from the API: courses, consultations, clubs and chats, ideas and reviews, experts, forecasts, favorites.
+  // Only view settings are stored in the browser (plus favorites while signed out).
   const api = window.DalAPI;
   const { modes } = window.DAL;
   const $ = (s, r = document) => r.querySelector(s);
@@ -32,7 +32,7 @@
   const ROLE = { student: 'ученик', expert: 'эксперт', moderator: 'модератор' };
   const SOCIALS = { telegram: ['send', 'Telegram'], instagram: ['camera', 'Instagram'], youtube: ['circle-play', 'YouTube'], linkedin: ['briefcase-business', 'LinkedIn'], website: ['globe', 'Сайт'] };
 
-  // ---------- Настройки вида: только в этом браузере ----------
+  // ---------- View settings: this browser only ----------
   const PREFS = 'dal-live-prefs';
   const read = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v && typeof v === 'object' ? { ...d, ...v } : d; } catch (_) { return d; } };
   const write = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) { /* хранилище недоступно */ } };
@@ -41,7 +41,7 @@
   try { localStorage.removeItem('dal-live-demo'); } catch (_) { /* прежняя демо-часть больше не нужна */ }
   const savePrefs = () => write(PREFS, prefs);
 
-  // ---------- Данные с сервера ----------
+  // ---------- Server data ----------
   let me = null, catalog = [], products = [], experts = [], forecasts = [];
   let learning = { courses: [], inProgress: null }, mine = [], favs = new Set(), shownReviews = [], solWallet = '';
   let offline = false;
@@ -57,7 +57,7 @@
     const student = me?.role === 'student';
     [learning, mine] = student ? await Promise.all([api.get('/me/learning'), api.get('/me/products')]) : [{ courses: [], inProgress: null }, []];
   }
-  // Избранное гостя хранится в браузере; после входа переносится на сервер.
+  // Guest favorites live in the browser; after sign-in they are moved to the server.
   async function refreshFavorites() {
     if (!me) { favs = new Set(prefs.saved); return; }
     favs = new Set(await api.get('/me/favorites'));
@@ -71,7 +71,7 @@
   const ownsCourse = id => learning.courses.some(c => c.id === id);
   const myProduct = id => mine.find(p => p.id === id);
 
-  // Карточки: курс и продукт приводятся к одному виду.
+  // Cards: courses and products are normalized to a single shape.
   const fromCourse = c => ({
     id: c.id, kind: 'course', mode: 'courses', category: c.category, title: c.title, tag: c.freeLessons ? 'Есть бесплатный урок' : c.categoryName,
     expert: { id: c.expert.id, name: c.expert.name, avatar: c.expert.avatarUrl }, price: c.price, rating: c.rating, reviews: c.reviews,
@@ -88,7 +88,7 @@
     || (myProduct(id) && fromProduct(myProduct(id)));
   const byRating = (a, b) => (b.rating ?? 0) - (a.rating ?? 0) || (b.reviews ?? 0) - (a.reviews ?? 0);
 
-  // ---------- Состояние интерфейса ----------
+  // ---------- UI state ----------
   let mode = findDrum(prefs.mode), preview = drumItems.indexOf(mode), toastTimer, lastFocus, chatTimer = 0;
   let libraryMode = 'courses', expertMode = '', rankMode = 'all';
   let catalogSearch = '', catalogSort = 'popular', freeOnly = false, signalFilter = 'all';
@@ -96,7 +96,7 @@
   const main = $('#main'), modal = $('#modal');
   const icons = () => window.lucide?.createIcons({ attrs: { 'aria-hidden': 'true' } });
   const initials = name => String(name || '').split(' ').filter(Boolean).slice(0, 2).map(n => n[0]).join('').toUpperCase();
-  // Одна звезда, закрашенная на долю оценки: 4,5 из 5 — звезда закрашена на 90%.
+  // A single star filled by the rating fraction: 4.5 of 5 means the star is 90% filled.
   const STAR = '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>';
   const star = value => `<span class="star-meter" style="--fill:${Math.max(0, Math.min(100, value / 5 * 100))}%" aria-hidden="true"><svg viewBox="0 0 24 24" class="star-empty">${STAR}</svg><span class="star-fill"><svg viewBox="0 0 24 24">${STAR}</svg></span></span>`;
   const rating = (value, count) => value == null ? `<span class="rating muted-rating">Нет оценок</span>` : `<span class="rating" title="${rate(value)} из 5">${star(value)}${rate(value)}${count !== undefined ? `<small>(${count})</small>` : ''}</span>`;
@@ -187,10 +187,10 @@
   const signalLabels = { active: 'Открыт', success: 'Условие выполнено', miss: 'Не выполнено' };
   const signalCard = f => `<article class="signal-card"><div class="signal-heading"><div class="ticker"><span class="ticker-symbol">${esc(f.ticker)}</span><div><strong>${esc(f.name)}</strong><p>${esc(f.ticker)} · USD · ${f.direction === 'up' ? 'рост' : 'снижение'}</p></div></div><span class="status ${f.status}">${signalLabels[f.status]}</span></div><p class="fc-condition-public">Цена закрытия на ${fmtDate(f.deadline)} ${f.direction === 'up' ? 'не ниже' : 'не выше'} ${usd(f.targetPrice)}</p><div class="signal-values"><div><label>При публикации</label><strong>${usd(f.startPrice)}</strong></div><div><label>Цель</label><strong>${usd(f.targetPrice)}</strong></div><div><label>${f.status === 'active' ? 'Проверка' : 'Итог'}</label><strong>${f.status === 'active' ? fmtDate(f.deadline).replace(/\s\d{4}$/, '') : usd(f.resultPrice)}</strong></div></div>${f.anchor ? `<button class="chain-badge" data-action="verify-anchor" data-id="${f.id}" title="Проверить запись в блокчейне">${icon('link-2')}Зафиксирован в Solana · проверить</button>` : ''}<div class="signal-bottom">${expertLink(f.expert)}<button class="text-link" data-action="signal" data-id="${f.id}">Обоснование ${icon('arrow-right')}</button></div></article>`;
   const expertsStrip = () => `<div class="experts-strip">${[...experts].sort(byRating).map(e => `<a class="expert-mini" href="#expert/${e.id}">${avatar(e.avatarUrl, e.name)}<div><strong>${esc(e.name)}</strong><p>${esc(e.specialization)}</p></div>${rating(e.rating)}</a>`).join('')}</div>`;
-  // Горизонтальная полка: заголовок раздела и карточки, которые листаются вбок.
+  // Horizontal shelf: section heading plus horizontally scrolling cards.
   const shelf = (title, label, href, count, items) => `<section class="shelf"><div class="shelf-head"><div><span class="shelf-label">${esc(label)}</span><h2>${esc(title)}</h2></div><div class="shelf-tools">${href ? `<a class="text-link" href="${href}">Все${count != null ? ` · ${count}` : ''} ${icon('arrow-right')}</a>` : ''}${items.length > 2 ? `<button class="icon-button" data-action="shelf" data-id="-1" aria-label="Листать назад" title="Назад">${icon('chevron-left')}</button><button class="icon-button" data-action="shelf" data-id="1" aria-label="Листать вперёд" title="Вперёд">${icon('chevron-right')}</button>` : ''}</div></div>${items.length ? `<div class="shelf-row">${items.join('')}</div>` : '<p class="shelf-empty">Здесь скоро появятся предложения экспертов.</p>'}</section>`;
 
-  // ---------- Страницы ----------
+  // ---------- Pages ----------
   function overview() {
     const best = list => [...list].sort(byRating)[0];
     const picks = [best(catalog.map(fromCourse)), ...['experts', 'community'].map(m => best(products.filter(p => p.mode === m).map(fromProduct)))].filter(Boolean);
@@ -230,7 +230,7 @@
     return o.kind === 'course' ? courseView(id) : offerView(id);
   }
 
-  // Отзыв о курсе фиксируется в Solana: автор подписывает запись своим кошельком, отметку может проверить любой.
+  // A course review is anchored in Solana: the author signs the record with their wallet, and anyone can verify it.
   const reviewChain = r => r.anchor ? `<button class="chain-badge" data-action="verify-review" data-id="${r.id}" title="Проверить запись в блокчейне">${icon('link-2')}Зафиксирован в Solana · проверить</button>`
     : r.mine && r.memo ? `<button class="btn secondary small-btn" data-action="anchor-review" data-id="${r.id}">${icon('link-2')}Зафиксировать в Solana</button>` : '';
   const reviewsBlock = (list, value, count, canReview, id, kind, note = '') => { shownReviews = list; return `<section class="detail-section"><div class="section-head" style="margin-top:0"><h2>Отзывы учеников</h2>${rating(value, count)}</div>${list.length ? list.map(r => `<article class="review-item"><div class="review-top"><span class="user-avatar">${esc(r.author[0])}</span><strong>${esc(r.author)}</strong>${r.mine ? '<span class="badge">Ваш отзыв</span>' : ''}${rating(r.rating)}</div><p>${esc(r.text)}</p>${reviewChain(r)}${r.reply ? `<div class="review-reply"><span class="tiny-meta">Ответ эксперта</span><p>${esc(r.reply)}</p></div>` : ''}</article>`).join('') : '<p class="subtitle">Отзывов пока нет.</p>'}${canReview ? `<button class="btn secondary" data-action="review" data-id="${id}" data-kind="${kind}">${icon('message-square')}Оставить отзыв</button>` : note}</section>`; };
@@ -258,14 +258,14 @@
     </div><aside class="purchase-panel"><span class="tiny-meta">Курсы</span><div class="purchase-price">${money(c.price)}</div><p class="purchase-caption">${own ? 'Курс уже у вас' : 'За полный доступ'}</p>${panel}${saveButton(id)}<ul class="purchase-features"><li>${icon('play')}${lessons.length} ${plural(lessons.length, 'урок', 'урока', 'уроков')}${c.duration ? ` · ${fmtTime(c.duration)}` : ''}</li><li>${icon('users-round')}${c.students} ${plural(c.students, 'ученик', 'ученика', 'учеников')}</li><li>${icon('undo-2')}Возврат 14 дней, если пройдено меньше 20%</li></ul><p class="fine-print">Оплата пока не подключена: доступ открывается без списания денег. Доходность инвестиций не гарантируется.</p></aside></div>`;
   }
 
-  // Текст материала: абзацы через пустую строку, «## » — подзаголовок.
+  // Material text: paragraphs separated by blank lines, "## " marks a subheading.
   const richText = text => String(text || '').split(/\n{2,}/).map(block => {
     const lines = block.split('\n');
     if (lines[0].startsWith('## ')) return `<h2>${esc(lines[0].slice(3))}</h2>${lines.length > 1 ? `<p>${esc(lines.slice(1).join(' '))}</p>` : ''}`;
     return `<p>${esc(block).replace(/\n/g, '<br>')}</p>`;
   }).join('');
 
-  // Страница консультации, клуба, чата, идеи или обзора. Блок покупки зависит от вида продукта.
+  // Page for a consultation, club, chat, idea or review. The purchase block depends on the product type.
   async function offerView(id) {
     const own = myProduct(id);
     let d = null;
@@ -460,7 +460,7 @@
     lastNav = hash;
   }
 
-  // ---------- Диалоги и действия ----------
+  // ---------- Dialogs and actions ----------
   function toast(m) { clearTimeout(toastTimer); $('#toast').textContent = m; $('#toast').classList.add('visible'); toastTimer = setTimeout(() => $('#toast').classList.remove('visible'), 3200); }
   function openDialog(title, body, cls = '') {
     if (modal.open) modal.close();
@@ -512,7 +512,7 @@
     openDialog('Выберите время', `<p class="modal-text">${esc(d.title)} · ${d.durationMin} мин · осталось ${d.purchase.sessionsLeft} ${plural(d.purchase.sessionsLeft, 'встреча', 'встречи', 'встреч')}</p><form id="bookingForm" data-product="${id}"><div class="slot-days">${[...days.values()].map(list => `<fieldset class="slot-day"><legend>${esc(dayFmt.format(new Date(list[0].startsAt)))}</legend><div class="slot-list">${list.map(s => `<label class="slot"><input type="radio" name="slot" value="${s.id}" data-when="${esc(fmtWhen(s.startsAt))}" required><span>${hourFmt.format(new Date(s.startsAt))}</span></label>`).join('')}</div></fieldset>`).join('')}</div><p class="fine-print">Время — по часовому поясу вашего компьютера. Отменить запись можно не позже чем за 24 часа: встреча вернётся в пакет.</p><button type="submit" class="btn wide" style="margin-top:16px">${icon('calendar-check')}Записаться</button></form>`, 'wide');
   }
 
-  // Чат клуба: сообщения подгружаются каждые 5 секунд, пока окно открыто.
+  // Club chat: messages are polled every 5 seconds while the window is open.
   let chatLast = '';
   const chatMsg = m => `<div class="chat-message ${m.mine ? 'self' : ''} ${m.isExpert ? 'expert' : ''}" data-id="${m.id}"><strong>${esc(m.mine ? 'Вы' : m.author)}${m.isExpert && !m.mine ? ' · эксперт' : ''}</strong>${esc(m.text)}<small>${esc(shortFmt.format(new Date(m.createdAt)))}</small></div>`;
   function appendChat(list) {
@@ -541,7 +541,7 @@
     }, 5000);
   }
 
-  // Проверка прогноза в блокчейне: читаем транзакцию Solana и сравниваем записанные условия с теми, что на сайте.
+  // On-chain forecast check: read the Solana transaction and compare the recorded terms with those on the site.
   const memoBlock = m => `<pre class="memo">${esc(m)}</pre>`;
   async function verifyAnchor(f, review = false) {
     const t = review

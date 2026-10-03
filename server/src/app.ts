@@ -20,7 +20,7 @@ export const SERVER_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.u
 export interface AppOptions {
   dbPath: string;
   storageDir: string;
-  siteDir?: string;   // папка с Dal.html и Studio.html; по умолчанию — на уровень выше server/
+  siteDir?: string;   // folder with Dal.html and Studio.html; defaults to the parent of server/
   log?: boolean;
 }
 
@@ -33,7 +33,7 @@ export interface App {
   loginLimiter: ReturnType<typeof createLoginLimiter>;
 }
 
-// Понятные сообщения для ограничений, которые охраняет сама база данных.
+// Human-readable messages for constraints enforced by the database itself.
 const DB_ERRORS: [RegExp, number, string, string][] = [
   [/forecast_immutable/, 409, 'forecast_immutable', 'Опубликованный прогноз нельзя изменить или удалить.'],
   [/forecast_already_resolved/, 409, 'forecast_resolved', 'Итог прогноза уже определён.'],

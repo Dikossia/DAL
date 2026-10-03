@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  // Dal Studio, подключённая к серверу: кабинет эксперта и раздел модератора.
+  // Dal Studio, connected to the server: expert dashboard and moderator section.
   const api = window.DalAPI;
   const RIGHTS = window.STUDIO.rights;
   const $ = (s, r = document) => r.querySelector(s);
@@ -27,7 +27,7 @@
   const CATEGORIES = [['beginner', 'Для новичков'], ['advanced', 'Для продвинутых'], ['workshops', 'Вебинары и практикумы']];
   const COVERS = ['foundations', 'analytics', 'workshop'];
   const MAX_FREE = 2;
-  // Продукты режимов «Работа с экспертом», «Сообщество», «Идеи и аналитика».
+  // Products for the "Work with an expert", "Community" and "Ideas & analytics" modes.
   const MODE_NAMES = { experts: 'Работа с экспертом', community: 'Сообщество', ideas: 'Идеи и аналитика' };
   const PTYPES = {
     consultation: { mode: 'experts', kind: 'sessions', name: 'Разовая консультация', icon: 'messages-square', text: 'Одна встреча по видеосвязи. Ученик выбирает время из вашего расписания.' },
@@ -50,7 +50,7 @@
     return `<p>${esc(block).replace(/\n/g, '<br>')}</p>`;
   }).join('');
 
-  // ---------- Состояние ----------
+  // ---------- State ----------
   const PREFS = 'dal-studio-prefs';
   let prefs = { theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' };
   try { prefs = { ...prefs, ...JSON.parse(localStorage.getItem(PREFS) || '{}') }; } catch (_) { /* по умолчанию */ }
@@ -75,7 +75,7 @@
   const productChip = p => chip(...COURSE_STATUS[p.status]);
   const allLessons = c => c.modules.flatMap(m => m.lessons);
 
-  // ---------- Оформление ----------
+  // ---------- Appearance ----------
   function applyAppearance() {
     const dark = prefs.theme === 'dark', root = document.documentElement;
     root.dataset.theme = dark ? 'dark' : 'light';
@@ -93,7 +93,7 @@
     $('#studioNav').innerHTML = navItems().map(([id, ic, t]) => `<a href="#${id}" class="${cur === id ? 'active' : ''}" ${cur === id ? 'aria-current="page"' : ''}>${icon(ic)}<span>${t}</span>${id === 'reviews' && unanswered ? `<span class="nav-count">${unanswered}</span>` : ''}</a>`).join('');
   }
 
-  // ---------- Обзор ----------
+  // ---------- Overview ----------
   async function overview() {
     const [o, courses] = await Promise.all([api.get('/studio/overview'), api.get('/studio/courses')]);
     const rv = o.attention.find(a => a.type === 'reviews');
@@ -117,7 +117,7 @@
       <section><div class="section-head"><h2>Недавние курсы</h2><a class="text-link" href="#courses">Все курсы ${icon('arrow-right')}</a></div>${courses.length ? `<div class="mini-courses">${courses.slice(0, 3).map(c => `<a class="mini-course" href="#course/${c.id}">${coverHTML(c.coverUrl)}<span><strong>${esc(c.title || 'Новый курс')}</strong>${courseChip(c)}</span></a>`).join('')}</div>` : '<p class="subtitle">Курсов пока нет. Создайте первый.</p>'}</section></div>`;
   }
 
-  // ---------- Курсы ----------
+  // ---------- Courses ----------
   async function coursesView() {
     const all = await api.get('/studio/courses');
     const list = all.filter(c => courseFilter === 'all' || c.status === courseFilter);
@@ -269,7 +269,7 @@
     $('#modal video').addEventListener('error', () => { $('#playerNote').textContent = 'Браузер не может воспроизвести этот файл. Попробуйте MP4 с кодеком H.264.'; }, { once: true });
   }
 
-  // ---------- Встречи, клубы, идеи ----------
+  // ---------- Sessions, clubs, ideas ----------
   async function productsView() {
     const all = await api.get('/studio/products');
     const list = all.filter(p => productFilter === 'all' || p.mode === productFilter);
@@ -353,7 +353,7 @@
     img.src = u;
   }
 
-  // Чат клуба для эксперта и модератора: новые сообщения подгружаются каждые 5 секунд.
+  // Club chat for experts and moderators: new messages are polled every 5 seconds.
   const chatMsg = m => `<div class="chat-message ${m.mine ? 'self' : ''} ${m.isExpert ? 'expert' : ''}" data-id="${m.id}"><strong>${esc(m.mine ? 'Вы' : m.author)}</strong>${esc(m.text)}<small>${esc(shortFmt.format(new Date(m.createdAt)))}</small></div>`;
   function appendChat(list) {
     const box = $('#chatMessages'); if (!box) return;
@@ -373,7 +373,7 @@
     }, 5000);
   }
 
-  // ---------- Прогнозы ----------
+  // ---------- Forecasts ----------
   const conditionText = f => {
     const change = (f.targetPrice - f.startPrice) / f.startPrice * 100;
     return `Цена закрытия ${esc(f.ticker)} на ${fmtDate(f.deadline)} ${f.direction === 'up' ? 'не ниже' : 'не выше'} ${usd(f.targetPrice)} (${change > 0 ? '+' : ''}${change.toFixed(1).replace('.', ',')}% от цены публикации).`;
@@ -422,7 +422,7 @@
     icons();
   }
 
-  // ---------- Ученики, отзывы, доход, профиль ----------
+  // ---------- Students, reviews, income, profile ----------
   async function studentsView() {
     const [list, courses, products, o] = await Promise.all([api.get(`/studio/students${stFilter !== 'all' ? `?item=${encodeURIComponent(stFilter)}` : ''}`), api.get('/studio/courses'), api.get('/studio/products'), api.get('/studio/overview')]);
     const isLive = c => c.status === 'published' || c.status === 'hidden';
@@ -485,7 +485,7 @@
       <p class="rank-context">Это предложение для обсуждения с командой и юристом. Лимиты, комиссия и сроки выплат указаны для демонстрации.</p>`;
   }
 
-  // ---------- Модерация ----------
+  // ---------- Moderation ----------
   const REASONS = { spam: 'Реклама или спам', abuse: 'Оскорбления', offtopic: 'Не относится к курсу', other: 'Другое' };
   async function moderationView() {
     const q = await api.get('/moderation/queue');
@@ -523,9 +523,9 @@
       <aside class="editor-panel"><div class="panel-card"><span class="tiny-meta">Решение</span>${inReview ? `<ul class="checklist">${p.checklist.map(x => `<li class="${x.ok ? 'ok' : ''}">${icon(x.ok ? 'circle-check' : 'circle')}${esc(x.label)}</li>`).join('')}</ul><button class="btn wide" data-action="approve" data-kind="product" data-id="${id}">${icon('check')}Одобрить и опубликовать</button><button class="btn secondary wide" data-action="reject" data-kind="product" data-id="${id}">${icon('undo-2')}Вернуть с комментарием</button>` : '<p class="subtitle">Продукт не на модерации.</p>'}</div><div class="panel-card subtle"><h3>Что проверить</h3><ul class="plain-list"><li>Нет обещаний доходности и персональных торговых советов</li><li>Описание соответствует формату и цене</li>${t.kind === 'material' ? '<li>Текст осмысленный, источники указаны</li>' : '<li>Ссылка ведёт на сервис видеосвязи</li>'}</ul></div></aside></div>`;
   }
 
-  // ---------- Рендер ----------
+  // ---------- Render ----------
   let routeKey = '', lastNav = '', seq = 0;
-  // ---------- Solana: фиксация и проверка прогнозов ----------
+  // ---------- Solana: anchoring and verifying forecasts ----------
   let fcList = [], solWallet = '';
   const memoBlock = m => `<pre class="memo">${esc(m)}</pre>`;
   function anchorDialog(f, note = '') {
@@ -593,7 +593,7 @@
     lastNav = hash;
   }
 
-  // ---------- Диалоги, меню ----------
+  // ---------- Dialogs, menus ----------
   let toastTimer, lastFocus, pendingConfirm = null;
   function toast(m) { clearTimeout(toastTimer); const t = $('#toast'); t.textContent = m; t.classList.add('visible'); toastTimer = setTimeout(() => t.classList.remove('visible'), 3400); }
   function openDialog(title, body, cls = '') {
@@ -619,7 +619,7 @@
   };
   const courseAction = (path, msg, button) => guard(async () => { current = await api.post(`/studio/courses/${current.id}/${path}`); rerenderEditor(); toast(msg); }, button);
 
-  // ---------- События ----------
+  // ---------- Events ----------
   document.addEventListener('click', e => {
     if (e.target.closest('.skip-link')) { e.preventDefault(); main.focus(); return; }
     if (!e.target.closest('#profileMenu,.user-trigger')) closeMenu();
@@ -686,7 +686,7 @@
       case 'edit-reply': editingReply = id; render(); break;
       case 'report': openDialog('Пожаловаться на отзыв', `<p class="modal-text">Отзыв останется видимым, пока модерация не примет решение.</p><form id="reportForm" data-id="${id}">${Object.entries(REASONS).map(([k, t], i) => `<label class="check-line"><input type="radio" name="reason" value="${k}" ${i === 0 ? 'checked' : ''}><span>${t}</span></label>`).join('')}<div class="modal-actions"><button type="button" class="btn secondary" data-action="close-modal">Отмена</button><button class="btn" type="submit">Отправить жалобу</button></div></form>`); break;
       case 'request': { const field = id; openDialog(field === 'name' ? 'Изменить имя' : 'Изменить стаж', `<p class="modal-text">Изменение вступит в силу после проверки модератором.</p><form id="requestForm" data-field="${field}"><label class="form-label">${field === 'name' ? 'Новое имя и фамилия' : 'Стаж, например «6 лет практики»'}<input type="text" name="value" maxlength="60" required value="${esc(field === 'name' ? profile.name : profile.experience)}"></label><div class="modal-actions"><button type="button" class="btn secondary" data-action="close-modal">Отмена</button><button class="btn" type="submit">Отправить на модерацию</button></div></form>`); break; }
-      // Модерация
+      // Moderation
       case 'approve': guard(async () => { const product = b.dataset.kind === 'product'; await api.post(`/moderation/${product ? 'products' : 'courses'}/${id}/approve`); toast(product ? 'Продукт одобрен и опубликован' : 'Курс одобрен и опубликован'); if (location.hash === '#moderation') render(); else location.hash = '#moderation'; }, b); break;
       case 'reject': openDialog(b.dataset.kind === 'product' ? 'Вернуть продукт эксперту' : 'Вернуть курс эксперту', `<form id="rejectForm" data-id="${id}" data-kind="${b.dataset.kind || 'course'}"><label class="form-label">Что нужно исправить<textarea name="note" rows="4" maxlength="1000" required minlength="5" placeholder="Например: во втором уроке нет звука"></textarea></label><div class="modal-actions"><button type="button" class="btn secondary" data-action="close-modal">Отмена</button><button class="btn" type="submit">Вернуть эксперту</button></div></form>`); break;
       case 'report-keep': case 'report-remove': guard(async () => { await api.post(`/moderation/reports/${id}/resolve`, { action: action === 'report-keep' ? 'keep' : 'remove' }); toast(action === 'report-keep' ? 'Отзыв оставлен' : 'Отзыв скрыт'); render(); }, b); break;
@@ -800,7 +800,7 @@
   });
   window.addEventListener('hashchange', render);
 
-  // ---------- Запуск: нужен вход эксперта или модератора ----------
+  // ---------- Startup: requires an expert or moderator sign-in ----------
   (async () => {
     applyAppearance();
     main.innerHTML = `<div class="page"><div class="loading">Загружаем…</div></div>`;

@@ -1,4 +1,4 @@
-// Собрано из server/src командой node web/build.mjs. Не редактируйте вручную.
+// Built from server/src by node web/build.mjs. Do not edit by hand.
 var DalEngine = (() => {
   var __defProp = Object.defineProperty;
   var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -89,7 +89,7 @@ var DalEngine = (() => {
     exec(sql) {
       this.db.exec(sql);
     }
-    // sql.js при export() закрывает базу и освобождает подготовленные запросы: запоминаем поколение и готовим заново.
+    // sql.js closes the database and frees prepared statements on export(): track a generation and re-prepare.
     export() {
       const b = this.db.export();
       this.gen++;
@@ -236,7 +236,7 @@ var DalEngine = (() => {
       get: (sql, ...p) => stmt(sql).get(...norm2(p)),
       run: (sql, ...p) => stmt(sql).run(...norm2(p)),
       exec: (sql) => db.exec(sql),
-      // Транзакции синхронные: node:sqlite работает синхронно, внутри tx не должно быть await.
+      // Transactions are synchronous: node:sqlite is synchronous, so there must be no await inside tx.
       tx(fn) {
         if (depth > 0) return fn();
         depth++;
@@ -512,29 +512,29 @@ var DalEngine = (() => {
   // server/src/rules.ts
   var RULES = {
     maxFreeLessons: 2,
-    // бесплатных уроков в курсе для предпросмотра
+    // free preview lessons per course
     maxOpenForecasts: 5,
-    // открытых прогнозов у эксперта одновременно
+    // open forecasts per expert at a time
     maxVideoBytes: 4 * 1024 ** 3,
-    // 4 ГБ на видео урока
+    // 4 GB per lesson video
     maxCoverBytes: 5 * 1024 ** 2,
-    // 5 МБ на обложку
+    // 5 MB per cover
     commission: 0.2,
-    // комиссия платформы с продажи
+    // platform commission per sale
     refundDays: 14,
-    // возврат возможен столько дней после покупки
+    // refunds allowed this many days after purchase
     refundMaxProgress: 0.2,
-    // ...и если пройдено меньше этой доли курса
+    // ...and only if less than this share of the course is completed
     forecastMaxDays: 365,
-    // срок прогноза: от завтра до года
+    // forecast horizon: from tomorrow up to one year
     rationaleMin: 120,
-    // минимальная длина обоснования прогноза
+    // minimum forecast rationale length
     sessionDays: 30,
-    // срок жизни входа
+    // session lifetime
     payoutDays: [5, 20],
-    // числа месяца, когда идут выплаты
+    // days of the month when payouts happen
     loginAttempts: 10,
-    // неудачных попыток входа за окно
+    // failed sign-in attempts per window
     loginWindowMin: 15
   };
   var CATEGORIES = ["beginner", "advanced", "workshops"];
@@ -555,16 +555,16 @@ var DalEngine = (() => {
   var MODE_NAMES = { courses: "Курсы", experts: "Работа с экспертом", community: "Сообщество", ideas: "Идеи и аналитика" };
   var PRODUCT_RULES = {
     cancelHours: 24,
-    // отменить запись на встречу можно не позже чем за сутки
+    // a session booking can be cancelled no later than 24 hours before
     slotMaxDays: 180,
-    // слоты расписания — не дальше чем на полгода вперёд
+    // schedule slots at most six months ahead
     minContent: 300,
-    // минимальная длина материала идеи или обзора
+    // minimum length of an idea or review material
     previewChars: 400,
-    // сколько текста платного материала видно до покупки
+    // how much of a paid material's text is visible before purchase
     messageMax: 1e3,
     sessionRefundDays: 14
-    // встречи: возврат до 14 дней, если ни одна встреча не назначена
+    // sessions: refund within 14 days if no session has been scheduled
   };
   var SOCIALS = ["telegram", "instagram", "youtube", "linkedin", "website"];
 
@@ -766,9 +766,9 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/auth/register",
-      group: "Вход",
-      summary: "Регистрация ученика или эксперта. Сразу возвращает токен.",
-      body: '{ email, password (от 8 символов), name, role: "student" | "expert" }',
+      group: "Account",
+      summary: "Register a student or expert. Returns a token immediately.",
+      body: '{ email, password (8+ chars), name, role: "student" | "expert" }',
       handler: ({ body }) => {
         const b = parse(body, {
           email: str({ max: 120, pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, patternMsg: "Некорректный адрес почты" }),
@@ -787,8 +787,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/auth/login",
-      group: "Вход",
-      summary: "Вход по почте и паролю. Возвращает токен для заголовка Authorization: Bearer <токен>.",
+      group: "Account",
+      summary: "Sign in with email and password. Returns a token for the Authorization: Bearer <token> header.",
       body: "{ email, password }",
       handler: ({ body }) => {
         const b = parse(body, { email: str({ max: 120 }), password: str({ max: 200, trim: false }) });
@@ -806,8 +806,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/auth/logout",
-      group: "Вход",
-      summary: "Выход: токен перестаёт действовать.",
+      group: "Account",
+      summary: "Sign out: the token stops working.",
       auth: "user",
       handler: ({ req }) => {
         const t = tokenFrom(req, new URL("http://x"));
@@ -817,16 +817,16 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/me",
-      group: "Вход",
-      summary: "Текущий пользователь.",
+      group: "Account",
+      summary: "Current user.",
       auth: "user",
       handler: ({ user }) => me(user.id)
     });
     router.add({
       method: "PATCH",
       path: "/me",
-      group: "Вход",
-      summary: "Изменить своё имя (ученик или модератор). Эксперт меняет имя через запрос на модерацию.",
+      group: "Account",
+      summary: "Change own name (student or moderator). Experts change their name via a moderation request.",
       auth: ["student", "moderator"],
       body: "{ name }",
       handler: ({ user, body }) => {
@@ -1129,15 +1129,15 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/health",
-      group: "Служебное",
-      summary: "Проверка, что сервер работает.",
+      group: "System",
+      summary: "Check that the server is running.",
       handler: () => ({ ok: true, time: (/* @__PURE__ */ new Date()).toISOString() })
     });
     router.add({
       method: "GET",
       path: "/catalog/courses",
-      group: "Каталог",
-      summary: "Курсы в каталоге. Параметры: category, q (поиск по названию и эксперту), sort = popular | price | price-desc | new, free=1.",
+      group: "Catalog",
+      summary: "Catalog courses. Params: category, q (search by title and expert), sort = popular | price | price-desc | new, free=1.",
       handler: ({ query }) => {
         const cat = query.get("category"), q = (query.get("q") || "").trim().toLocaleLowerCase("ru"), sort = query.get("sort") || "popular";
         let rows = db.all(`SELECT c.*, u.name AS expert_name FROM courses c JOIN users u ON u.id = c.expert_id WHERE c.status = 'published'`);
@@ -1157,8 +1157,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/catalog/courses/:id",
-      group: "Каталог",
-      summary: "Страница курса: описание, программа, бесплатные уроки.",
+      group: "Catalog",
+      summary: "Course page: description, curriculum, free lessons.",
       handler: ({ params }) => {
         const c = getCourse(db, params.id);
         if (c.status !== "published") throw notFound("Курс не найден");
@@ -1168,8 +1168,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/catalog/courses/:id/reviews",
-      group: "Каталог",
-      summary: "Отзывы о курсе с ответами эксперта, записью для Solana (memo) и ссылкой на транзакцию, если отзыв зафиксирован.",
+      group: "Catalog",
+      summary: "Course reviews with expert replies, the Solana record (memo) and a transaction link if the review is anchored.",
       handler: ({ user, params }) => {
         const c = getCourse(db, params.id);
         if (c.status !== "published") throw notFound("Курс не найден");
@@ -1193,15 +1193,15 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/experts",
-      group: "Каталог",
-      summary: "Эксперты с рейтингом и статистикой прогнозов.",
+      group: "Catalog",
+      summary: "Experts with ratings and forecast stats.",
       handler: () => db.all(`${expertRow} WHERE u.role = 'expert' AND p.verified_at IS NOT NULL ORDER BY u.name`).map((r) => expertPublic(db, r))
     });
     router.add({
       method: "GET",
       path: "/experts/:id",
-      group: "Каталог",
-      summary: "Страница учителя: профиль, соцсети, рейтинг в каждом режиме, курсы и продукты в каталоге, прогнозы.",
+      group: "Catalog",
+      summary: "Teacher page: profile, social links, rating per mode, catalog courses and products, forecasts.",
       handler: ({ params }) => {
         const row = db.get(`${expertRow} WHERE u.id = ? AND u.role = 'expert'`, params.id);
         if (!row) throw notFound("Эксперт не найден");
@@ -1213,8 +1213,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/forecasts",
-      group: "Каталог",
-      summary: "Журнал прогнозов. Параметры: expert, status = active | success | miss | done.",
+      group: "Catalog",
+      summary: "Forecast log. Params: expert, status = active | success | miss | done.",
       handler: ({ query }) => {
         const expert = query.get("expert"), status = query.get("status");
         let rows = db.all(`SELECT f.*, u.name AS expert_name FROM forecasts f JOIN users u ON u.id = f.expert_id ORDER BY f.published_at DESC`);
@@ -1227,8 +1227,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/media/covers/:file",
-      group: "Служебное",
-      summary: "Загруженные обложки курсов.",
+      group: "System",
+      summary: "Uploaded course covers.",
       handler: (ctx) => {
         if (!/^[\w-]+\.(jpg|png|webp)$/.test(ctx.params.file)) throw notFound();
         sendFile(ctx.req, ctx.res, path_default.join(app2.storageDir, "covers", ctx.params.file));
@@ -1243,8 +1243,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/courses/:id/enroll",
-      group: "Ученик",
-      summary: "Получить доступ к курсу. Оплата пока не подключена: цена фиксируется, деньги не списываются.",
+      group: "Student",
+      summary: "Get access to a course. Payment is not wired up yet: the price is recorded, no money is charged.",
       auth: ["student"],
       handler: ({ user, params }) => {
         const c = getCourse(db, params.id);
@@ -1262,8 +1262,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/courses/:id/refund",
-      group: "Ученик",
-      summary: `Вернуть курс: в течение ${RULES.refundDays} дней и если пройдено меньше ${RULES.refundMaxProgress * 100}%.`,
+      group: "Student",
+      summary: `Refund a course: within ${RULES.refundDays} days and only if less than ${RULES.refundMaxProgress * 100}% is completed.`,
       auth: ["student"],
       handler: ({ user, params }) => {
         const e = db.get(`SELECT * FROM enrollments WHERE user_id = ? AND course_id = ? AND status = 'active'`, user.id, params.id);
@@ -1278,8 +1278,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/me/learning",
-      group: "Ученик",
-      summary: "Мои курсы с прогрессом и курс «в процессе».",
+      group: "Student",
+      summary: 'My courses with progress and the "in progress" course.',
       auth: ["student"],
       handler: ({ user }) => {
         const rows = db.all(`SELECT c.*, e.created_at AS enrolled_at FROM enrollments e JOIN courses c ON c.id = e.course_id WHERE e.user_id = ? AND e.status = 'active' ORDER BY e.created_at DESC`, user.id);
@@ -1290,8 +1290,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/learning/courses/:id",
-      group: "Ученик",
-      summary: "Содержимое купленного курса: уроки, отметки о прохождении, ссылки на видео.",
+      group: "Student",
+      summary: "Contents of a purchased course: lessons, completion marks, video links.",
       auth: "user",
       handler: ({ user, params }) => {
         const c = getCourse(db, params.id);
@@ -1304,8 +1304,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/lessons/:id/complete",
-      group: "Ученик",
-      summary: "Отметить урок пройденным. Уроки проходятся по порядку.",
+      group: "Student",
+      summary: "Mark a lesson as completed. Lessons are completed in order.",
       auth: ["student"],
       handler: ({ user, params }) => {
         const { course } = lessonContext(db, params.id);
@@ -1321,8 +1321,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/lessons/:id/video",
-      group: "Ученик",
-      summary: "Видео урока с перемоткой (Range). Для тега <video> токен можно передать как ?token=. Бесплатные уроки опубликованных курсов доступны всем.",
+      group: "Student",
+      summary: "Lesson video with seeking (Range). For the <video> tag the token may be passed as ?token=. Free lessons of published courses are open to everyone.",
       handler: (ctx) => {
         const { lesson, course } = lessonContext(db, ctx.params.id);
         const v = db.get("SELECT * FROM videos WHERE lesson_id = ?", lesson.id);
@@ -1335,10 +1335,10 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/courses/:id/reviews",
-      group: "Ученик",
-      summary: "Оставить отзыв о курсе: только после прохождения всех уроков, один на курс, изменить нельзя.",
+      group: "Student",
+      summary: "Leave a course review: only after completing all lessons, one per course, cannot be edited.",
       auth: ["student"],
-      body: "{ rating: 1–5, text: 10–1500 символов }",
+      body: "{ rating: 1–5, text: 10–1500 chars }",
       handler: ({ user, params, body }) => {
         const c = getCourse(db, params.id);
         if (!hasActiveEnrollment(db, user.id, c.id)) throw forbidden("Отзыв может оставить только ученик, купивший курс");
@@ -1353,8 +1353,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/reviews/:id/anchor",
-      group: "Ученик",
-      summary: "Сохранить ссылку на транзакцию Solana, в которой зафиксирован отзыв (memo: оценка, курс, хеш текста). Только автор, один раз.",
+      group: "Student",
+      summary: "Save a link to the Solana transaction anchoring the review (memo: rating, course, text hash). Author only, once.",
       auth: ["student"],
       body: '{ signature, wallet, cluster: "devnet" }',
       handler: ({ user, params, body }) => {
@@ -1388,8 +1388,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/lessons/:id/comments",
-      group: "Ученик",
-      summary: "Вопросы и комментарии под уроком (ученики курса, эксперт, модератор).",
+      group: "Student",
+      summary: "Lesson questions and comments (course students, expert, moderator).",
       auth: "user",
       handler: ({ user, params }) => {
         const { course } = commentsAccess(user, params.id);
@@ -1400,10 +1400,10 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/lessons/:id/comments",
-      group: "Ученик",
-      summary: "Задать вопрос или оставить комментарий под уроком. Эксперт курса отвечает здесь же.",
+      group: "Student",
+      summary: "Ask a question or leave a comment on a lesson. The course expert replies here too.",
       auth: "user",
-      body: "{ text: 2–1000 символов }",
+      body: "{ text: 2–1000 chars }",
       handler: ({ user, params, body }) => {
         const { course } = commentsAccess(user, params.id);
         const b = parse(body, { text: str({ min: 2, max: 1e3 }) });
@@ -1415,8 +1415,8 @@ var DalEngine = (() => {
     router.add({
       method: "DELETE",
       path: "/lessons/comments/:id",
-      group: "Ученик",
-      summary: "Скрыть комментарий: автор, эксперт курса или модератор.",
+      group: "Student",
+      summary: "Hide a comment: author, course expert or moderator.",
       auth: "user",
       handler: ({ user, params }) => {
         const c = db.get("SELECT * FROM lesson_comments WHERE id = ? AND hidden = 0", params.id);
@@ -1467,8 +1467,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/studio/courses",
-      group: "Студия: курсы",
-      summary: "Мои курсы во всех статусах.",
+      group: "Studio: courses",
+      summary: "My courses in all statuses.",
       auth: E,
       handler: ({ user, query }) => {
         const status = query.get("status");
@@ -1481,8 +1481,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/studio/courses",
-      group: "Студия: курсы",
-      summary: "Создать черновик курса (с первым модулем).",
+      group: "Studio: courses",
+      summary: "Create a course draft (with a first module).",
       auth: E,
       body: "{ title?, category? }",
       handler: (ctx) => {
@@ -1500,8 +1500,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/studio/courses/:id",
-      group: "Студия: курсы",
-      summary: "Курс для редактора: программа, видео, чек-лист модерации, что сейчас разрешено.",
+      group: "Studio: courses",
+      summary: "Course for the editor: curriculum, videos, moderation checklist, currently allowed actions.",
       auth: E,
       handler: ({ user, params }) => {
         ownCourse(db, user, params.id);
@@ -1511,10 +1511,10 @@ var DalEngine = (() => {
     router.add({
       method: "PATCH",
       path: "/studio/courses/:id",
-      group: "Студия: курсы",
-      summary: "Изменить название, направление, описание, цену или обложку из библиотеки. Закрыто, пока курс на модерации. Новая цена действует для новых покупок.",
+      group: "Studio: courses",
+      summary: "Change the title, category, description, price or library cover. Locked while the course is in moderation. A new price applies to new purchases.",
       auth: E,
-      body: '{ title?, category?, description?, price? (тенге, null — не указана), cover? ("foundations" | "analytics" | "workshop" | null) }',
+      body: '{ title?, category?, description?, price? (tenge, null = not set), cover? ("foundations" | "analytics" | "workshop" | null) }',
       handler: ({ user, params, body }) => {
         const c = ownCourse(db, user, params.id);
         assertEditable(c);
@@ -1537,11 +1537,11 @@ var DalEngine = (() => {
     router.add({
       method: "PUT",
       path: "/studio/courses/:id/cover",
-      group: "Студия: курсы",
-      summary: "Загрузить свою обложку. Тело запроса — сам файл (JPG, PNG или WEBP до 5 МБ), Content-Type картинки.",
+      group: "Studio: courses",
+      summary: "Upload a custom cover. The request body is the file itself (JPG, PNG or WEBP up to 5 MB) with the image Content-Type.",
       auth: E,
       raw: true,
-      body: "двоичный файл картинки",
+      body: "binary image file",
       handler: async ({ user, params, req }) => {
         const c = ownCourse(db, user, params.id);
         assertEditable(c);
@@ -1559,8 +1559,8 @@ var DalEngine = (() => {
     router.add({
       method: "DELETE",
       path: "/studio/courses/:id",
-      group: "Студия: курсы",
-      summary: "Удалить курс вместе с видео. Нельзя, если курс купили или он на модерации.",
+      group: "Studio: courses",
+      summary: "Delete a course together with its videos. Not allowed if the course has been purchased or is in moderation.",
       auth: E,
       handler: ({ user, params }) => {
         const c = ownCourse(db, user, params.id);
@@ -1575,7 +1575,7 @@ var DalEngine = (() => {
     const transition = (p, summary, fn) => router.add({
       method: "POST",
       path: `/studio/courses/:id/${p}`,
-      group: "Студия: курсы",
+      group: "Studio: courses",
       summary,
       auth: E,
       handler: ({ user, params }) => {
@@ -1584,30 +1584,30 @@ var DalEngine = (() => {
         return detail(c.id);
       }
     });
-    transition("submit", "Отправить черновик на модерацию. Нужны подтверждённый профиль и выполненный чек-лист.", (c, user) => {
+    transition("submit", "Submit the draft for moderation. Requires a verified profile and a completed checklist.", (c, user) => {
       if (c.status !== "draft") throw conflict("bad_status", "На модерацию отправляется только черновик");
       assertVerifiedExpert(db, user, "Отправлять курсы на модерацию");
       const left = checklist(c, lessonsOf(db, c.id)).filter((x) => !x.ok);
       if (left.length) throw new HttpError(422, "checklist", "Курс ещё не готов к модерации", left.map((x) => x.label));
       db.run(`UPDATE courses SET status = 'review', submitted_at = ?, moderation_note = NULL, updated_at = ? WHERE id = ?`, nowIso(), nowIso(), c.id);
     });
-    transition("withdraw", "Отозвать курс с модерации обратно в черновики.", (c) => {
+    transition("withdraw", "Withdraw the course from moderation back to drafts.", (c) => {
       if (c.status !== "review") throw conflict("bad_status", "Курс не на модерации");
       db.run(`UPDATE courses SET status = 'draft', submitted_at = NULL, updated_at = ? WHERE id = ?`, nowIso(), c.id);
     });
-    transition("hide", "Скрыть курс из каталога. Купившие сохраняют доступ.", (c) => {
+    transition("hide", "Hide the course from the catalog. Buyers keep access.", (c) => {
       if (c.status !== "published") throw conflict("bad_status", "Скрыть можно только курс из каталога");
       db.run(`UPDATE courses SET status = 'hidden', updated_at = ? WHERE id = ?`, nowIso(), c.id);
     });
-    transition("unhide", "Вернуть скрытый курс в каталог.", (c) => {
+    transition("unhide", "Return a hidden course to the catalog.", (c) => {
       if (c.status !== "hidden") throw conflict("bad_status", "Курс не скрыт");
       db.run(`UPDATE courses SET status = 'published', updated_at = ? WHERE id = ?`, nowIso(), c.id);
     });
     router.add({
       method: "POST",
       path: "/studio/courses/:id/modules",
-      group: "Студия: программа",
-      summary: "Добавить модуль. В опубликованный курс тоже можно.",
+      group: "Studio: curriculum",
+      summary: "Add a module. Also allowed for published courses.",
       auth: E,
       body: "{ title? }",
       handler: ({ user, params, body }) => {
@@ -1623,8 +1623,8 @@ var DalEngine = (() => {
     router.add({
       method: "PATCH",
       path: "/studio/modules/:id",
-      group: "Студия: программа",
-      summary: "Переименовать модуль.",
+      group: "Studio: curriculum",
+      summary: "Rename a module.",
       auth: E,
       body: "{ title }",
       handler: ({ user, params, body }) => {
@@ -1639,8 +1639,8 @@ var DalEngine = (() => {
     router.add({
       method: "DELETE",
       path: "/studio/modules/:id",
-      group: "Студия: программа",
-      summary: "Удалить модуль с уроками и видео. Только в черновике; последний модуль удалить нельзя.",
+      group: "Studio: curriculum",
+      summary: "Delete a module with its lessons and videos. Drafts only; the last module cannot be deleted.",
       auth: E,
       handler: ({ user, params }) => {
         const { course } = ownModule(user, params.id);
@@ -1656,8 +1656,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/studio/modules/:id/lessons",
-      group: "Студия: программа",
-      summary: "Добавить урок в модуль.",
+      group: "Studio: curriculum",
+      summary: "Add a lesson to a module.",
       auth: E,
       body: "{ title? }",
       handler: ({ user, params, body }) => {
@@ -1674,8 +1674,8 @@ var DalEngine = (() => {
     router.add({
       method: "PATCH",
       path: "/studio/lessons/:id",
-      group: "Студия: программа",
-      summary: `Переименовать урок или открыть его бесплатно (не больше ${RULES.maxFreeLessons} в курсе).`,
+      group: "Studio: curriculum",
+      summary: `Rename a lesson or make it free (at most ${RULES.maxFreeLessons} per course).`,
       auth: E,
       body: "{ title?, isFree? }",
       handler: ({ user, params, body }) => {
@@ -1697,8 +1697,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/studio/lessons/:id/move",
-      group: "Студия: программа",
-      summary: "Переставить урок выше или ниже внутри модуля.",
+      group: "Studio: curriculum",
+      summary: "Move a lesson up or down within its module.",
       auth: E,
       body: '{ direction: "up" | "down" }',
       handler: ({ user, params, body }) => {
@@ -1719,8 +1719,8 @@ var DalEngine = (() => {
     router.add({
       method: "DELETE",
       path: "/studio/lessons/:id",
-      group: "Студия: программа",
-      summary: "Удалить урок с видео. Только в черновике: из опубликованного курса уроки не удаляются.",
+      group: "Studio: curriculum",
+      summary: "Delete a lesson with its video. Drafts only: lessons are never removed from a published course.",
       auth: E,
       handler: ({ user, params }) => {
         const { lesson, course } = ownLesson(db, user, params.id);
@@ -1734,11 +1734,11 @@ var DalEngine = (() => {
     router.add({
       method: "PUT",
       path: "/studio/lessons/:id/video",
-      group: "Студия: видео",
-      summary: "Загрузить или заменить видео урока. Тело запроса — сам файл (MP4, MOV или WEBM до 4 ГБ). Заголовки: Content-Type видео, X-File-Name (имя файла, закодированное encodeURIComponent), X-Duration (секунды, если известны).",
+      group: "Studio: video",
+      summary: "Upload or replace a lesson video. The request body is the file itself (MP4, MOV or WEBM up to 4 GB). Headers: video Content-Type, X-File-Name (file name encoded with encodeURIComponent), X-Duration (seconds, if known).",
       auth: E,
       raw: true,
-      body: "двоичный файл видео",
+      body: "binary video file",
       handler: async ({ user, params, req }) => {
         const { lesson, course } = ownLesson(db, user, params.id);
         assertEditable(course);
@@ -1780,8 +1780,8 @@ var DalEngine = (() => {
     router.add({
       method: "DELETE",
       path: "/studio/lessons/:id/video",
-      group: "Студия: видео",
-      summary: "Удалить видео урока. Только в черновике: в опубликованном курсе видео можно только заменить.",
+      group: "Studio: video",
+      summary: "Delete a lesson video. Drafts only: in a published course a video can only be replaced.",
       auth: E,
       handler: ({ user, params }) => {
         const { lesson, course } = ownLesson(db, user, params.id);
@@ -1823,8 +1823,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/studio/forecasts/:id/anchor",
-      group: "Студия: прогнозы",
-      summary: "Сохранить ссылку на транзакцию Solana, в которой зафиксированы условия прогноза (memo). Делается один раз.",
+      group: "Studio: forecasts",
+      summary: "Save a link to the Solana transaction anchoring the forecast terms (memo). Done once.",
       auth: E2,
       body: '{ signature, wallet, cluster: "devnet" }',
       handler: ({ user, params, body }) => {
@@ -1843,8 +1843,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/studio/forecasts",
-      group: "Студия: прогнозы",
-      summary: "Мои прогнозы и статистика.",
+      group: "Studio: forecasts",
+      summary: "My forecasts and stats.",
       auth: E2,
       handler: ({ user }) => {
         const rows = db.all("SELECT * FROM forecasts WHERE expert_id = ? ORDER BY published_at DESC", user.id);
@@ -1858,10 +1858,10 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/studio/forecasts",
-      group: "Студия: прогнозы",
-      summary: `Опубликовать прогноз. После публикации его нельзя изменить или удалить. Лимиты: ${RULES.maxOpenForecasts} открытых, по одному тикеру — один открытый.`,
+      group: "Studio: forecasts",
+      summary: `Publish a forecast. Once published it cannot be changed or deleted. Limits: ${RULES.maxOpenForecasts} open, one open per ticker.`,
       auth: E2,
-      body: '{ ticker, name, direction: "up" | "down", startPrice, targetPrice, deadline: "ГГГГ-ММ-ДД" (от завтра до года), rationale (от 120 символов), acknowledged: true }',
+      body: '{ ticker, name, direction: "up" | "down", startPrice, targetPrice, deadline: "YYYY-MM-DD" (tomorrow to one year), rationale (120+ chars), acknowledged: true }',
       handler: (ctx) => {
         const user = ctx.user;
         assertVerifiedExpert(db, user, "Публиковать прогнозы");
@@ -1907,10 +1907,10 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/studio/forecasts/:id/comments",
-      group: "Студия: прогнозы",
-      summary: "Добавить комментарий к своему открытому прогнозу. Условия прогноза не меняются.",
+      group: "Studio: forecasts",
+      summary: "Add a comment to your own open forecast. The forecast terms do not change.",
       auth: E2,
-      body: "{ text: 10–600 символов }",
+      body: "{ text: 10–600 chars }",
       handler: ({ user, params, body }) => {
         const f = db.get("SELECT * FROM forecasts WHERE id = ?", params.id);
         if (!f || f.expert_id !== user.id) throw notFound("Прогноз не найден");
@@ -1923,8 +1923,8 @@ var DalEngine = (() => {
     for (const method of ["PATCH", "DELETE"]) router.add({
       method,
       path: "/studio/forecasts/:id",
-      group: "Студия: прогнозы",
-      summary: method === "PATCH" ? "Изменить прогноз нельзя — всегда 409." : "Удалить прогноз нельзя — всегда 409.",
+      group: "Studio: forecasts",
+      summary: method === "PATCH" ? "Forecasts cannot be changed: always 409." : "Forecasts cannot be deleted: always 409.",
       auth: E2,
       handler: () => {
         throw conflict("forecast_immutable", "Опубликованный прогноз нельзя изменить или удалить. Можно добавить комментарий.");
@@ -1995,8 +1995,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/studio/overview",
-      group: "Студия: обзор",
-      summary: "Сводка кабинета: ученики, продажи, рейтинг, ближайшие встречи и список «Требует внимания».",
+      group: "Studio: overview",
+      summary: 'Dashboard summary: students, sales, rating, upcoming sessions and the "Needs attention" list.',
       auth: E3,
       handler: ({ user }) => {
         const id = user.id;
@@ -2046,8 +2046,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/studio/students",
-      group: "Студия: ученики",
-      summary: "Ученики курсов и покупатели продуктов: сокращённое имя и прогресс. Почта и телефоны не отдаются. Параметр item — курс или продукт.",
+      group: "Studio: students",
+      summary: "Course students and product buyers: shortened name and progress. Emails and phone numbers are not returned. Param item: a course or product.",
       auth: E3,
       handler: ({ user, query }) => {
         const item = query.get("item") || query.get("course");
@@ -2077,8 +2077,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/studio/reviews",
-      group: "Студия: отзывы",
-      summary: "Отзывы о моих курсах и продуктах. Параметр unanswered=1 — только без ответа.",
+      group: "Studio: reviews",
+      summary: "Reviews of my courses and products. Param unanswered=1: only unanswered ones.",
       auth: E3,
       handler: ({ user, query }) => {
         const course = db.all(
@@ -2106,10 +2106,10 @@ var DalEngine = (() => {
     router.add({
       method: "PUT",
       path: "/studio/reviews/:id/reply",
-      group: "Студия: отзывы",
-      summary: "Публичный ответ на отзыв (можно изменить). Сам отзыв эксперт изменить или удалить не может.",
+      group: "Studio: reviews",
+      summary: "Public reply to a review (editable). The expert cannot change or delete the review itself.",
       auth: E3,
-      body: "{ text: 2–1000 символов }",
+      body: "{ text: 2–1000 chars }",
       handler: ({ user, params, body }) => {
         const r = ownReview(user.id, params.id);
         const b = parse(body, { text: str({ min: 2, max: 1e3 }) });
@@ -2120,8 +2120,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/studio/reviews/:id/report",
-      group: "Студия: отзывы",
-      summary: "Пожаловаться на отзыв. Он остаётся видимым, пока модерация не решит.",
+      group: "Studio: reviews",
+      summary: "Report a review. It stays visible until moderation decides.",
       auth: E3,
       body: '{ reason: "spam" | "abuse" | "offtopic" | "other" }',
       handler: ({ user, params, body }) => {
@@ -2135,8 +2135,8 @@ var DalEngine = (() => {
     for (const method of ["PATCH", "DELETE"]) router.add({
       method,
       path: "/studio/reviews/:id",
-      group: "Студия: отзывы",
-      summary: "Изменить или удалить отзыв эксперт не может — всегда 409.",
+      group: "Studio: reviews",
+      summary: "Experts cannot change or delete a review: always 409.",
       auth: E3,
       handler: () => {
         throw conflict("review_immutable", "Отзывы нельзя изменить или удалить. Пожалуйтесь на отзыв, решение примет модерация.");
@@ -2145,8 +2145,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/studio/income",
-      group: "Студия: доход",
-      summary: "Продажи курсов и продуктов по месяцам, по каждому курсу и продукту, последние продажи и ближайшая выплата.",
+      group: "Studio: income",
+      summary: "Course and product sales by month and per item, recent sales and the next payout.",
       auth: E3,
       handler: ({ user }) => {
         const id = user.id;
@@ -2176,18 +2176,18 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/studio/profile",
-      group: "Студия: профиль",
-      summary: "Мой публичный профиль, соцсети и запросы на изменение.",
+      group: "Studio: profile",
+      summary: "My public profile, social links and change requests.",
       auth: E3,
       handler: ({ user }) => profile(user.id)
     });
     router.add({
       method: "PATCH",
       path: "/studio/profile",
-      group: "Студия: профиль",
-      summary: "Изменить специализацию, описание, достижения и соцсети. Видно ученикам сразу.",
+      group: "Studio: profile",
+      summary: "Change specialization, bio, achievements and social links. Visible to students immediately.",
       auth: E3,
-      body: `{ specialization?, bio?, achievements?: string[], socials?: { ${SOCIALS.join(", ")} } — ссылка или @ник }`,
+      body: `{ specialization?, bio?, achievements?: string[], socials?: { ${SOCIALS.join(", ")} }: URL or @handle }`,
       handler: ({ user, body }) => {
         const b = parse(body, {
           specialization: str({ min: 2, max: 80, optional: true }),
@@ -2215,8 +2215,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/studio/profile/requests",
-      group: "Студия: профиль",
-      summary: "Запросить изменение имени или стажа. Вступит в силу после модерации.",
+      group: "Studio: profile",
+      summary: "Request a change of name or years of experience. Takes effect after moderation.",
       auth: E3,
       body: '{ field: "name" | "experience", value }',
       handler: ({ user, body }) => {
@@ -2237,8 +2237,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/moderation/queue",
-      group: "Модерация",
-      summary: "Всё, что ждёт решения модератора.",
+      group: "Moderation",
+      summary: "Everything awaiting a moderator decision.",
       auth: M,
       handler: () => ({
         courses: db.all(`SELECT * FROM courses WHERE status = 'review' ORDER BY submitted_at`).map((c) => ({ ...courseCard(db, c), submittedAt: c.submitted_at, checklist: checklist(c, lessonsOf(db, c.id)) })),
@@ -2272,8 +2272,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/moderation/courses/:id/approve",
-      group: "Модерация",
-      summary: "Одобрить курс: он появится в каталоге.",
+      group: "Moderation",
+      summary: "Approve a course: it appears in the catalog.",
       auth: M,
       handler: ({ params }) => {
         const c = reviewCourse(params.id);
@@ -2284,10 +2284,10 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/moderation/courses/:id/reject",
-      group: "Модерация",
-      summary: "Вернуть курс эксперту с комментарием.",
+      group: "Moderation",
+      summary: "Return a course to the expert with a comment.",
       auth: M,
-      body: "{ note: что исправить }",
+      body: "{ note: what to fix }",
       handler: ({ params, body }) => {
         const c = reviewCourse(params.id);
         const b = parse(body, { note: str({ min: 5, max: 1e3 }) });
@@ -2298,8 +2298,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/moderation/reports/:id/resolve",
-      group: "Модерация",
-      summary: "Решение по жалобе на отзыв: оставить отзыв или скрыть его.",
+      group: "Moderation",
+      summary: "Resolve a review report: keep the review or hide it.",
       auth: M,
       body: '{ action: "keep" | "remove" }',
       handler: ({ user, params, body }) => {
@@ -2322,8 +2322,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/moderation/profile-requests/:id/:decision",
-      group: "Модерация",
-      summary: "Одобрить (approve) или отклонить (reject) изменение имени или стажа эксперта.",
+      group: "Moderation",
+      summary: "Approve or reject a change to an expert's name or years of experience.",
       auth: M,
       handler: ({ user, params }) => {
         if (!["approve", "reject"].includes(params.decision)) throw notFound();
@@ -2342,8 +2342,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/moderation/experts/:id/verify",
-      group: "Модерация",
-      summary: "Подтвердить личность и счёт эксперта: после этого он может продавать курсы и публиковать прогнозы.",
+      group: "Moderation",
+      summary: "Verify an expert's identity and payout account: after that they can sell courses and publish forecasts.",
       auth: M,
       handler: ({ params }) => {
         const p = db.get("SELECT * FROM expert_profiles WHERE user_id = ?", params.id);
@@ -2356,8 +2356,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/moderation/forecasts/:id/resolve",
-      group: "Модерация",
-      summary: "Записать цену закрытия на дату срока; итог определяется автоматически. Пока источник котировок не подключён, цену вносит модератор.",
+      group: "Moderation",
+      summary: "Record the closing price on the deadline date; the outcome is determined automatically. Until a quote feed is connected, the moderator enters the price.",
       auth: M,
       body: "{ closePrice }",
       handler: ({ user, params, body }) => {
@@ -2394,8 +2394,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/catalog/products",
-      group: "Каталог",
-      summary: "Продукты режимов «Работа с экспертом», «Сообщество», «Идеи и аналитика». Параметры: mode, type, q, sort = popular | price | price-desc | new, free=1.",
+      group: "Catalog",
+      summary: 'Products for the "Work with an expert", "Community" and "Ideas & analysis" modes. Params: mode, type, q, sort = popular | price | price-desc | new, free=1.',
       handler: ({ query }) => {
         const mode = query.get("mode"), type = query.get("type"), q = (query.get("q") || "").trim().toLocaleLowerCase("ru"), sort = query.get("sort") || "popular";
         let rows = db.all(`SELECT p.*, u.name AS expert_name FROM products p JOIN users u ON u.id = p.expert_id WHERE p.status = 'published'`);
@@ -2416,8 +2416,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/catalog/products/:id",
-      group: "Каталог",
-      summary: "Страница продукта: описание, ближайшие свободные слоты, начало материала, отзывы.",
+      group: "Catalog",
+      summary: "Product page: description, upcoming free slots, material excerpt, reviews.",
       handler: ({ params, user }) => {
         const p = getProduct(db, params.id);
         if (p.status !== "published") throw notFound("Продукт не найден");
@@ -2435,8 +2435,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/products/:id/buy",
-      group: "Ученик: продукты",
-      summary: "Купить продукт (оплата пока не подключена). Для подписки повторная покупка продлевает срок. Цена фиксируется в момент покупки.",
+      group: "Student: products",
+      summary: "Buy a product (payment not wired up yet). For subscriptions, buying again extends the period. The price is fixed at purchase time.",
       auth: S,
       handler: ({ user, params }) => {
         const p = getProduct(db, params.id);
@@ -2476,8 +2476,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/products/:id/refund",
-      group: "Ученик: продукты",
-      summary: `Вернуть пакет встреч: в течение ${PRODUCT_RULES.sessionRefundDays} дней, если ни одна встреча не назначена. Подписки и материалы не возвращаются.`,
+      group: "Student: products",
+      summary: `Refund a session package: within ${PRODUCT_RULES.sessionRefundDays} days if no session has been booked. Subscriptions and materials are non-refundable.`,
       auth: S,
       handler: ({ user, params }) => {
         const p = getProduct(db, params.id), pu = activePurchase(db, user.id, p.id);
@@ -2497,8 +2497,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/me/products",
-      group: "Ученик: продукты",
-      summary: "Мои продукты по режимам: встречи и записи, подписки и сроки, материалы.",
+      group: "Student: products",
+      summary: "My products by mode: sessions and bookings, subscriptions and periods, materials.",
       auth: S,
       handler: ({ user }) => db.all(`SELECT p.*, pp.id AS purchase_id FROM product_purchases pp JOIN products p ON p.id = pp.product_id WHERE pp.user_id = ? AND pp.status = 'active' ORDER BY pp.created_at DESC`, user.id).map((p) => {
         const pu = db.get("SELECT * FROM product_purchases WHERE id = ?", p.purchase_id);
@@ -2509,8 +2509,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/learning/products/:id",
-      group: "Ученик: продукты",
-      summary: "Купленный продукт: ссылка на встречи, мои записи и свободное время, полный текст материала.",
+      group: "Student: products",
+      summary: "Purchased product: meeting link, my bookings and free slots, full material text.",
       auth: "user",
       handler: ({ user, params }) => {
         const p = getProduct(db, params.id);
@@ -2531,8 +2531,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/products/:id/book",
-      group: "Ученик: продукты",
-      summary: "Записаться на свободное время из расписания эксперта. Тратит одну встречу из пакета.",
+      group: "Student: products",
+      summary: "Book a free slot from the expert's schedule. Uses one session from the package.",
       auth: S,
       body: "{ slotId }",
       handler: ({ user, params, body }) => {
@@ -2555,8 +2555,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/bookings/:slotId/cancel",
-      group: "Ученик: продукты",
-      summary: `Отменить запись. Ученик — не позже чем за ${PRODUCT_RULES.cancelHours} часа до встречи, эксперт — в любое время. Встреча возвращается в пакет.`,
+      group: "Student: products",
+      summary: `Cancel a booking. Students: at least ${PRODUCT_RULES.cancelHours} hours before the session; experts: any time. The session returns to the package.`,
       auth: ["student", "expert"],
       handler: ({ user, params }) => {
         const slot = db.get("SELECT s.*, p.expert_id FROM product_slots s JOIN products p ON p.id = s.product_id WHERE s.id = ?", params.slotId);
@@ -2576,8 +2576,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/products/:id/messages",
-      group: "Ученик: продукты",
-      summary: "Сообщения клуба или чата (последние 200). Параметр after — только новые после указанного времени.",
+      group: "Student: products",
+      summary: "Club or chat messages (last 200). Param after: only messages newer than the given time.",
       auth: "user",
       handler: ({ user, params, query }) => {
         const p = getProduct(db, params.id);
@@ -2590,8 +2590,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/products/:id/messages",
-      group: "Ученик: продукты",
-      summary: "Написать в клуб или чат.",
+      group: "Student: products",
+      summary: "Post to a club or chat.",
       auth: "user",
       body: "{ text }",
       handler: ({ user, params, body }) => {
@@ -2606,10 +2606,10 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/products/:id/reviews",
-      group: "Ученик: продукты",
-      summary: "Отзыв о купленном продукте (один на продукт).",
+      group: "Student: products",
+      summary: "Review a purchased product (one per product).",
       auth: S,
-      body: "{ rating: 1–5, text: 10–1500 символов }",
+      body: "{ rating: 1–5, text: 10–1500 chars }",
       handler: ({ user, params, body }) => {
         const p = getProduct(db, params.id);
         if (!activePurchase(db, user.id, p.id)) throw forbidden("Отзыв может оставить только купивший ученик");
@@ -2643,16 +2643,16 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/studio/products",
-      group: "Студия: продукты",
-      summary: "Мои продукты всех режимов. Параметры: mode, status.",
+      group: "Studio: products",
+      summary: "My products across all modes. Params: mode, status.",
       auth: E4,
       handler: ({ user, query }) => db.all("SELECT * FROM products WHERE expert_id = ? ORDER BY updated_at DESC", user.id).filter((p) => (!query.get("mode") || p.mode === query.get("mode")) && (!query.get("status") || p.status === query.get("status"))).map((p) => ({ ...productCard(db, p), checklistLeft: productChecklist(db, p).filter((x) => !x.ok).length }))
     });
     router.add({
       method: "POST",
       path: "/studio/products",
-      group: "Студия: продукты",
-      summary: "Создать черновик продукта нужного типа.",
+      group: "Studio: products",
+      summary: "Create a product draft of the given type.",
       auth: E4,
       body: `{ type: ${TYPES.join(" | ")}, title? }`,
       handler: (ctx) => {
@@ -2679,8 +2679,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/studio/products/:id",
-      group: "Студия: продукты",
-      summary: "Продукт для редактора: поля, расписание с записями, чек-лист модерации.",
+      group: "Studio: products",
+      summary: "Product for the editor: fields, schedule with bookings, moderation checklist.",
       auth: E4,
       handler: ({ user, params }) => {
         ownProduct(db, user, params.id);
@@ -2690,8 +2690,8 @@ var DalEngine = (() => {
     router.add({
       method: "PATCH",
       path: "/studio/products/:id",
-      group: "Студия: продукты",
-      summary: "Изменить продукт. Закрыто на модерации. Новая цена и размер пакета действуют для новых покупок.",
+      group: "Studio: products",
+      summary: "Update a product. Locked while in moderation. A new price and package size apply to new purchases.",
       auth: E4,
       body: "{ title?, description?, price?, cover?, durationMin?, sessions?, periodDays?, meetingUrl?, scheduleNote?, content? }",
       handler: ({ user, params, body }) => {
@@ -2727,11 +2727,11 @@ var DalEngine = (() => {
     router.add({
       method: "PUT",
       path: "/studio/products/:id/cover",
-      group: "Студия: продукты",
-      summary: "Своя обложка продукта: тело запроса — картинка JPG, PNG или WEBP до 5 МБ.",
+      group: "Studio: products",
+      summary: "Custom product cover: the request body is a JPG, PNG or WEBP image up to 5 MB.",
       auth: E4,
       raw: true,
-      body: "двоичный файл картинки",
+      body: "binary image file",
       handler: async ({ user, params, req }) => {
         const p = ownProduct(db, user, params.id);
         assertProductEditable(p);
@@ -2747,8 +2747,8 @@ var DalEngine = (() => {
     router.add({
       method: "DELETE",
       path: "/studio/products/:id",
-      group: "Студия: продукты",
-      summary: "Удалить продукт. Нельзя, если его покупали или он на модерации.",
+      group: "Studio: products",
+      summary: "Delete a product. Not allowed if it has been purchased or is in moderation.",
       auth: E4,
       handler: ({ user, params }) => {
         const p = ownProduct(db, user, params.id);
@@ -2761,7 +2761,7 @@ var DalEngine = (() => {
     const transition = (name, summary, fn) => router.add({
       method: "POST",
       path: `/studio/products/:id/${name}`,
-      group: "Студия: продукты",
+      group: "Studio: products",
       summary,
       auth: E4,
       handler: ({ user, params }) => {
@@ -2770,32 +2770,32 @@ var DalEngine = (() => {
         return detail(p.id);
       }
     });
-    transition("submit", "Отправить черновик на модерацию: нужны подтверждённый профиль и выполненный чек-лист.", (p, user) => {
+    transition("submit", "Submit the draft for moderation: requires a verified profile and a completed checklist.", (p, user) => {
       if (p.status !== "draft") throw conflict("bad_status", "На модерацию отправляется только черновик");
       assertVerifiedExpert(db, user, "Отправлять продукты на модерацию");
       const left = productChecklist(db, p).filter((x) => !x.ok);
       if (left.length) throw new HttpError(422, "checklist", "Продукт ещё не готов к модерации", left.map((x) => x.label));
       db.run(`UPDATE products SET status = 'review', submitted_at = ?, moderation_note = NULL, updated_at = ? WHERE id = ?`, nowIso(), nowIso(), p.id);
     });
-    transition("withdraw", "Отозвать продукт с модерации.", (p) => {
+    transition("withdraw", "Withdraw the product from moderation.", (p) => {
       if (p.status !== "review") throw conflict("bad_status", "Продукт не на модерации");
       db.run(`UPDATE products SET status = 'draft', submitted_at = NULL, updated_at = ? WHERE id = ?`, nowIso(), p.id);
     });
-    transition("hide", "Скрыть из каталога. Купившие сохраняют доступ.", (p) => {
+    transition("hide", "Hide from the catalog. Buyers keep access.", (p) => {
       if (p.status !== "published") throw conflict("bad_status", "Скрыть можно только продукт из каталога");
       db.run(`UPDATE products SET status = 'hidden', updated_at = ? WHERE id = ?`, nowIso(), p.id);
     });
-    transition("unhide", "Вернуть скрытый продукт в каталог.", (p) => {
+    transition("unhide", "Return a hidden product to the catalog.", (p) => {
       if (p.status !== "hidden") throw conflict("bad_status", "Продукт не скрыт");
       db.run(`UPDATE products SET status = 'published', updated_at = ? WHERE id = ?`, nowIso(), p.id);
     });
     router.add({
       method: "POST",
       path: "/studio/products/:id/slots",
-      group: "Студия: продукты",
-      summary: `Добавить время в расписание встреч (от часа до ${PRODUCT_RULES.slotMaxDays} дней вперёд). Можно и в опубликованный продукт, и на модерации.`,
+      group: "Studio: products",
+      summary: `Add a slot to the session schedule (from one hour up to ${PRODUCT_RULES.slotMaxDays} days ahead). Works for published products and products in moderation.`,
       auth: E4,
-      body: "{ startsAt: дата и время ISO 8601 }",
+      body: "{ startsAt: ISO 8601 date-time }",
       handler: ({ user, params, body }) => {
         const p = ownProduct(db, user, params.id);
         if (kindOf(p) !== "sessions") throw conflict("not_sessions", "Расписание есть только у встреч");
@@ -2816,8 +2816,8 @@ var DalEngine = (() => {
     router.add({
       method: "DELETE",
       path: "/studio/slots/:id",
-      group: "Студия: продукты",
-      summary: "Убрать свободное время из расписания. Занятое время сначала отмените — ученику вернётся встреча.",
+      group: "Studio: products",
+      summary: "Remove a free slot from the schedule. Cancel a booked slot first; the student gets the session back.",
       auth: E4,
       handler: ({ user, params }) => {
         const s = db.get("SELECT s.*, p.expert_id FROM product_slots s JOIN products p ON p.id = s.product_id WHERE s.id = ?", params.id);
@@ -2830,8 +2830,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/studio/bookings",
-      group: "Студия: продукты",
-      summary: "Ближайшие встречи со всеми записями учеников.",
+      group: "Studio: products",
+      summary: "Upcoming sessions with all student bookings.",
       auth: E4,
       handler: ({ user }) => db.all(
         `SELECT s.id, s.starts_at, p.id AS product_id, p.title, p.duration_min, p.meeting_url, u.name FROM product_slots s JOIN products p ON p.id = s.product_id JOIN users u ON u.id = s.booked_by
@@ -2848,8 +2848,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/moderation/products/:id",
-      group: "Модерация",
-      summary: "Продукт целиком для проверки: текст, расписание, ссылки, чек-лист.",
+      group: "Moderation",
+      summary: "Full product for review: text, schedule, links, checklist.",
       auth: ["moderator"],
       handler: ({ params }) => {
         getProduct(db, params.id);
@@ -2859,8 +2859,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/moderation/products/:id/approve",
-      group: "Модерация",
-      summary: "Одобрить продукт: он появится в каталоге.",
+      group: "Moderation",
+      summary: "Approve a product: it appears in the catalog.",
       auth: ["moderator"],
       handler: ({ params }) => {
         const p = inReview(params.id);
@@ -2871,8 +2871,8 @@ var DalEngine = (() => {
     router.add({
       method: "POST",
       path: "/moderation/products/:id/reject",
-      group: "Модерация",
-      summary: "Вернуть продукт эксперту с комментарием.",
+      group: "Moderation",
+      summary: "Return a product to the expert with a comment.",
       auth: ["moderator"],
       body: "{ note }",
       handler: ({ params, body }) => {
@@ -2885,16 +2885,16 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/me/favorites",
-      group: "Вход",
-      summary: "Избранное: идентификаторы курсов и продуктов.",
+      group: "Account",
+      summary: "Favorites: course and product ids.",
       auth: "user",
       handler: ({ user }) => db.all("SELECT item_id FROM favorites WHERE user_id = ? ORDER BY created_at", user.id).map((r) => r.item_id)
     });
     router.add({
       method: "PUT",
       path: "/me/favorites/:id",
-      group: "Вход",
-      summary: "Добавить курс или продукт в избранное.",
+      group: "Account",
+      summary: "Add a course or product to favorites.",
       auth: "user",
       handler: ({ user, params }) => {
         if (!db.get("SELECT 1 FROM courses WHERE id = ? UNION SELECT 1 FROM products WHERE id = ?", params.id, params.id)) throw notFound("Курс или продукт не найден");
@@ -2904,8 +2904,8 @@ var DalEngine = (() => {
     router.add({
       method: "DELETE",
       path: "/me/favorites/:id",
-      group: "Вход",
-      summary: "Убрать из избранного.",
+      group: "Account",
+      summary: "Remove from favorites.",
       auth: "user",
       handler: ({ user, params }) => {
         db.run("DELETE FROM favorites WHERE user_id = ? AND item_id = ?", user.id, params.id);
@@ -2914,11 +2914,11 @@ var DalEngine = (() => {
     router.add({
       method: "PUT",
       path: "/me/avatar",
-      group: "Вход",
-      summary: "Загрузить своё фото: тело запроса — картинка JPG, PNG или WEBP до 5 МБ.",
+      group: "Account",
+      summary: "Upload own photo: the request body is a JPG, PNG or WEBP image up to 5 MB.",
       auth: "user",
       raw: true,
-      body: "двоичный файл картинки",
+      body: "binary image file",
       handler: async ({ user, req }) => {
         const ext = IMAGE_TYPES[String(req.headers["content-type"] || "").split(";")[0]];
         if (!ext) throw new HttpError(415, "unsupported_type", "Нужна картинка JPG, PNG или WEBP");
@@ -2933,8 +2933,8 @@ var DalEngine = (() => {
     router.add({
       method: "DELETE",
       path: "/me/avatar",
-      group: "Вход",
-      summary: "Убрать своё фото.",
+      group: "Account",
+      summary: "Remove own photo.",
       auth: "user",
       handler: ({ user }) => {
         const old = db.get("SELECT avatar_file FROM users WHERE id = ?", user.id)?.avatar_file;
@@ -2945,8 +2945,8 @@ var DalEngine = (() => {
     router.add({
       method: "GET",
       path: "/media/avatars/:file",
-      group: "Служебное",
-      summary: "Фото профилей.",
+      group: "System",
+      summary: "Profile photos.",
       handler: (ctx) => {
         if (!/^[\w-]+\.(jpg|png|webp)$/.test(ctx.params.file)) throw notFound();
         sendFile(ctx.req, ctx.res, path_default.join(app2.storageDir, "avatars", ctx.params.file));
@@ -3366,16 +3366,142 @@ var DalEngine = (() => {
   }
 
   // server/migrations/001_init.sql
-  var init_default = "-- Dal: схема первого этапа.\n-- Пишется на SQL, близком к стандартному, чтобы перенос на PostgreSQL был механическим:\n-- TEXT-идентификаторы → uuid, INTEGER 0/1 → boolean, TEXT-даты → timestamptz/date,\n-- триггеры RAISE(ABORT) → функции plpgsql с RAISE EXCEPTION.\n\nCREATE TABLE users (\n  id            TEXT PRIMARY KEY,\n  email         TEXT NOT NULL UNIQUE COLLATE NOCASE,\n  password_hash TEXT NOT NULL,\n  name          TEXT NOT NULL,\n  role          TEXT NOT NULL CHECK (role IN ('student', 'expert', 'moderator')),\n  created_at    TEXT NOT NULL\n);\n\nCREATE TABLE sessions (\n  token_hash TEXT PRIMARY KEY,\n  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,\n  created_at TEXT NOT NULL,\n  expires_at TEXT NOT NULL\n);\nCREATE INDEX sessions_user ON sessions(user_id);\n\n-- Публичный профиль эксперта. Имя хранится в users.name и меняется только через модерацию.\nCREATE TABLE expert_profiles (\n  user_id        TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,\n  specialization TEXT NOT NULL DEFAULT '',\n  bio            TEXT NOT NULL DEFAULT '',\n  experience     TEXT NOT NULL DEFAULT '',\n  achievements   TEXT NOT NULL DEFAULT '[]',  -- JSON-массив строк\n  avatar         TEXT,\n  verified_at    TEXT                          -- NULL: личность и счёт ещё не подтверждены\n);\n\nCREATE TABLE profile_requests (\n  id         TEXT PRIMARY KEY,\n  expert_id  TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,\n  field      TEXT NOT NULL CHECK (field IN ('name', 'experience')),\n  value      TEXT NOT NULL,\n  status     TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),\n  created_at TEXT NOT NULL,\n  decided_at TEXT,\n  decided_by TEXT REFERENCES users(id)\n);\n\nCREATE TABLE courses (\n  id              TEXT PRIMARY KEY,\n  expert_id       TEXT NOT NULL REFERENCES users(id),\n  title           TEXT NOT NULL DEFAULT '',\n  category        TEXT NOT NULL DEFAULT 'beginner' CHECK (category IN ('beginner', 'advanced', 'workshops')),\n  description     TEXT NOT NULL DEFAULT '',\n  price           INTEGER CHECK (price IS NULL OR price >= 0),  -- в тенге; NULL — цена не указана\n  cover           TEXT,                                          -- ключ библиотеки или 'upload:<файл>'\n  status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published', 'hidden')),\n  moderation_note TEXT,\n  submitted_at    TEXT,\n  published_at    TEXT,\n  created_at      TEXT NOT NULL,\n  updated_at      TEXT NOT NULL\n);\nCREATE INDEX courses_expert ON courses(expert_id);\nCREATE INDEX courses_status ON courses(status);\n\nCREATE TABLE modules (\n  id        TEXT PRIMARY KEY,\n  course_id TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,\n  title     TEXT NOT NULL DEFAULT '',\n  position  INTEGER NOT NULL\n);\nCREATE INDEX modules_course ON modules(course_id, position);\n\nCREATE TABLE lessons (\n  id         TEXT PRIMARY KEY,\n  module_id  TEXT NOT NULL REFERENCES modules(id) ON DELETE CASCADE,\n  title      TEXT NOT NULL DEFAULT '',\n  position   INTEGER NOT NULL,\n  is_free    INTEGER NOT NULL DEFAULT 0 CHECK (is_free IN (0, 1)),\n  created_at TEXT NOT NULL\n);\nCREATE INDEX lessons_module ON lessons(module_id, position);\n\nCREATE TABLE videos (\n  lesson_id             TEXT PRIMARY KEY REFERENCES lessons(id) ON DELETE CASCADE,\n  file_name             TEXT NOT NULL,   -- путь внутри storage/videos или 'seed:<файл>'\n  original_name         TEXT NOT NULL,\n  mime                  TEXT NOT NULL,\n  size                  INTEGER NOT NULL CHECK (size > 0),\n  duration              REAL,            -- секунды, если удалось определить\n  uploaded_at           TEXT NOT NULL,\n  updated_after_publish INTEGER NOT NULL DEFAULT 0 CHECK (updated_after_publish IN (0, 1))\n);\n\n-- Покупка (в первом этапе без оплаты). Цена фиксируется в момент покупки:\n-- смена цены курса действует только для новых покупок.\nCREATE TABLE enrollments (\n  id          TEXT PRIMARY KEY,\n  user_id     TEXT NOT NULL REFERENCES users(id),\n  course_id   TEXT NOT NULL REFERENCES courses(id) ON DELETE RESTRICT,\n  price_paid  INTEGER NOT NULL CHECK (price_paid >= 0),\n  commission  INTEGER NOT NULL CHECK (commission >= 0),\n  status      TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'refunded')),\n  created_at  TEXT NOT NULL,\n  refunded_at TEXT,\n  UNIQUE (user_id, course_id)\n);\nCREATE INDEX enrollments_course ON enrollments(course_id);\n\nCREATE TABLE lesson_progress (\n  user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,\n  lesson_id    TEXT NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,\n  completed_at TEXT NOT NULL,\n  PRIMARY KEY (user_id, lesson_id)\n);\n\nCREATE TABLE reviews (\n  id         TEXT PRIMARY KEY,\n  course_id  TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,\n  user_id    TEXT NOT NULL REFERENCES users(id),\n  rating     INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),\n  text       TEXT NOT NULL,\n  created_at TEXT NOT NULL,\n  reply      TEXT,\n  replied_at TEXT,\n  hidden     INTEGER NOT NULL DEFAULT 0 CHECK (hidden IN (0, 1)),  -- скрыт модерацией по жалобе\n  UNIQUE (course_id, user_id)\n);\n\nCREATE TABLE review_reports (\n  id          TEXT PRIMARY KEY,\n  review_id   TEXT NOT NULL REFERENCES reviews(id) ON DELETE CASCADE,\n  reporter_id TEXT NOT NULL REFERENCES users(id),\n  reason      TEXT NOT NULL,\n  status      TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'kept', 'removed')),\n  created_at  TEXT NOT NULL,\n  decided_at  TEXT,\n  decided_by  TEXT REFERENCES users(id)\n);\n\nCREATE TABLE forecasts (\n  id           TEXT PRIMARY KEY,\n  expert_id    TEXT NOT NULL REFERENCES users(id),\n  ticker       TEXT NOT NULL,\n  name         TEXT NOT NULL,\n  direction    TEXT NOT NULL CHECK (direction IN ('up', 'down')),\n  start_price  REAL NOT NULL CHECK (start_price > 0),\n  target_price REAL NOT NULL CHECK (target_price > 0),\n  deadline     TEXT NOT NULL,              -- дата проверки, YYYY-MM-DD\n  rationale    TEXT NOT NULL,\n  status       TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'success', 'miss')),\n  result_price REAL,\n  published_at TEXT NOT NULL,\n  resolved_at  TEXT,\n  resolved_by  TEXT REFERENCES users(id),\n  CHECK ((direction = 'up' AND target_price > start_price) OR (direction = 'down' AND target_price < start_price))\n);\nCREATE INDEX forecasts_expert ON forecasts(expert_id, status);\n-- По одному тикеру у эксперта может быть только один открытый прогноз.\nCREATE UNIQUE INDEX forecasts_one_active_per_ticker ON forecasts(expert_id, ticker) WHERE status = 'active';\n\n-- Опубликованный прогноз нельзя изменить или удалить. Итог выставляется один раз.\nCREATE TRIGGER forecasts_no_delete BEFORE DELETE ON forecasts\nBEGIN SELECT RAISE(ABORT, 'forecast_immutable'); END;\n\nCREATE TRIGGER forecasts_terms_immutable\nBEFORE UPDATE OF expert_id, ticker, name, direction, start_price, target_price, deadline, rationale, published_at ON forecasts\nBEGIN SELECT RAISE(ABORT, 'forecast_immutable'); END;\n\nCREATE TRIGGER forecasts_resolve_once BEFORE UPDATE OF status, result_price ON forecasts\nWHEN OLD.status <> 'active'\nBEGIN SELECT RAISE(ABORT, 'forecast_already_resolved'); END;\n\nCREATE TABLE forecast_comments (\n  id          TEXT PRIMARY KEY,\n  forecast_id TEXT NOT NULL REFERENCES forecasts(id),\n  text        TEXT NOT NULL,\n  created_at  TEXT NOT NULL\n);\n\n-- Курс, который кто-то купил, удалить нельзя (только скрыть).\nCREATE TRIGGER courses_keep_purchased BEFORE DELETE ON courses\nWHEN EXISTS (SELECT 1 FROM enrollments WHERE course_id = OLD.id)\nBEGIN SELECT RAISE(ABORT, 'course_has_students'); END;\n\n-- Отзывы не удаляются: при нарушении модерация скрывает их флагом hidden.\n-- Отзыв оставляет только купивший ученик, а купленный курс удалить нельзя, поэтому каскад сюда не доходит.\nCREATE TRIGGER reviews_no_delete BEFORE DELETE ON reviews\nBEGIN SELECT RAISE(ABORT, 'review_immutable'); END;\n";
+  var init_default = "-- Dal: stage 1 schema.\n-- Written in near-standard SQL so that porting to PostgreSQL is mechanical:\n-- TEXT ids → uuid, INTEGER 0/1 → boolean, TEXT dates → timestamptz/date,\n-- RAISE(ABORT) triggers → plpgsql functions with RAISE EXCEPTION.\n\nCREATE TABLE users (\n  id            TEXT PRIMARY KEY,\n  email         TEXT NOT NULL UNIQUE COLLATE NOCASE,\n  password_hash TEXT NOT NULL,\n  name          TEXT NOT NULL,\n  role          TEXT NOT NULL CHECK (role IN ('student', 'expert', 'moderator')),\n  created_at    TEXT NOT NULL\n);\n\nCREATE TABLE sessions (\n  token_hash TEXT PRIMARY KEY,\n  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,\n  created_at TEXT NOT NULL,\n  expires_at TEXT NOT NULL\n);\nCREATE INDEX sessions_user ON sessions(user_id);\n\n-- Public expert profile. The name lives in users.name and changes only through moderation.\nCREATE TABLE expert_profiles (\n  user_id        TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,\n  specialization TEXT NOT NULL DEFAULT '',\n  bio            TEXT NOT NULL DEFAULT '',\n  experience     TEXT NOT NULL DEFAULT '',\n  achievements   TEXT NOT NULL DEFAULT '[]',  -- JSON array of strings\n  avatar         TEXT,\n  verified_at    TEXT                          -- NULL: identity and payout account not yet verified\n);\n\nCREATE TABLE profile_requests (\n  id         TEXT PRIMARY KEY,\n  expert_id  TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,\n  field      TEXT NOT NULL CHECK (field IN ('name', 'experience')),\n  value      TEXT NOT NULL,\n  status     TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),\n  created_at TEXT NOT NULL,\n  decided_at TEXT,\n  decided_by TEXT REFERENCES users(id)\n);\n\nCREATE TABLE courses (\n  id              TEXT PRIMARY KEY,\n  expert_id       TEXT NOT NULL REFERENCES users(id),\n  title           TEXT NOT NULL DEFAULT '',\n  category        TEXT NOT NULL DEFAULT 'beginner' CHECK (category IN ('beginner', 'advanced', 'workshops')),\n  description     TEXT NOT NULL DEFAULT '',\n  price           INTEGER CHECK (price IS NULL OR price >= 0),  -- in tenge; NULL means no price set\n  cover           TEXT,                                          -- library key or 'upload:<file>'\n  status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published', 'hidden')),\n  moderation_note TEXT,\n  submitted_at    TEXT,\n  published_at    TEXT,\n  created_at      TEXT NOT NULL,\n  updated_at      TEXT NOT NULL\n);\nCREATE INDEX courses_expert ON courses(expert_id);\nCREATE INDEX courses_status ON courses(status);\n\nCREATE TABLE modules (\n  id        TEXT PRIMARY KEY,\n  course_id TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,\n  title     TEXT NOT NULL DEFAULT '',\n  position  INTEGER NOT NULL\n);\nCREATE INDEX modules_course ON modules(course_id, position);\n\nCREATE TABLE lessons (\n  id         TEXT PRIMARY KEY,\n  module_id  TEXT NOT NULL REFERENCES modules(id) ON DELETE CASCADE,\n  title      TEXT NOT NULL DEFAULT '',\n  position   INTEGER NOT NULL,\n  is_free    INTEGER NOT NULL DEFAULT 0 CHECK (is_free IN (0, 1)),\n  created_at TEXT NOT NULL\n);\nCREATE INDEX lessons_module ON lessons(module_id, position);\n\nCREATE TABLE videos (\n  lesson_id             TEXT PRIMARY KEY REFERENCES lessons(id) ON DELETE CASCADE,\n  file_name             TEXT NOT NULL,   -- path inside storage/videos or 'seed:<file>'\n  original_name         TEXT NOT NULL,\n  mime                  TEXT NOT NULL,\n  size                  INTEGER NOT NULL CHECK (size > 0),\n  duration              REAL,            -- seconds, if it could be determined\n  uploaded_at           TEXT NOT NULL,\n  updated_after_publish INTEGER NOT NULL DEFAULT 0 CHECK (updated_after_publish IN (0, 1))\n);\n\n-- Purchase (no payment in stage 1). The price is fixed at purchase time:\n-- a course price change only affects new purchases.\nCREATE TABLE enrollments (\n  id          TEXT PRIMARY KEY,\n  user_id     TEXT NOT NULL REFERENCES users(id),\n  course_id   TEXT NOT NULL REFERENCES courses(id) ON DELETE RESTRICT,\n  price_paid  INTEGER NOT NULL CHECK (price_paid >= 0),\n  commission  INTEGER NOT NULL CHECK (commission >= 0),\n  status      TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'refunded')),\n  created_at  TEXT NOT NULL,\n  refunded_at TEXT,\n  UNIQUE (user_id, course_id)\n);\nCREATE INDEX enrollments_course ON enrollments(course_id);\n\nCREATE TABLE lesson_progress (\n  user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,\n  lesson_id    TEXT NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,\n  completed_at TEXT NOT NULL,\n  PRIMARY KEY (user_id, lesson_id)\n);\n\nCREATE TABLE reviews (\n  id         TEXT PRIMARY KEY,\n  course_id  TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,\n  user_id    TEXT NOT NULL REFERENCES users(id),\n  rating     INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),\n  text       TEXT NOT NULL,\n  created_at TEXT NOT NULL,\n  reply      TEXT,\n  replied_at TEXT,\n  hidden     INTEGER NOT NULL DEFAULT 0 CHECK (hidden IN (0, 1)),  -- hidden by moderation after a report\n  UNIQUE (course_id, user_id)\n);\n\nCREATE TABLE review_reports (\n  id          TEXT PRIMARY KEY,\n  review_id   TEXT NOT NULL REFERENCES reviews(id) ON DELETE CASCADE,\n  reporter_id TEXT NOT NULL REFERENCES users(id),\n  reason      TEXT NOT NULL,\n  status      TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'kept', 'removed')),\n  created_at  TEXT NOT NULL,\n  decided_at  TEXT,\n  decided_by  TEXT REFERENCES users(id)\n);\n\nCREATE TABLE forecasts (\n  id           TEXT PRIMARY KEY,\n  expert_id    TEXT NOT NULL REFERENCES users(id),\n  ticker       TEXT NOT NULL,\n  name         TEXT NOT NULL,\n  direction    TEXT NOT NULL CHECK (direction IN ('up', 'down')),\n  start_price  REAL NOT NULL CHECK (start_price > 0),\n  target_price REAL NOT NULL CHECK (target_price > 0),\n  deadline     TEXT NOT NULL,              -- check date, YYYY-MM-DD\n  rationale    TEXT NOT NULL,\n  status       TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'success', 'miss')),\n  result_price REAL,\n  published_at TEXT NOT NULL,\n  resolved_at  TEXT,\n  resolved_by  TEXT REFERENCES users(id),\n  CHECK ((direction = 'up' AND target_price > start_price) OR (direction = 'down' AND target_price < start_price))\n);\nCREATE INDEX forecasts_expert ON forecasts(expert_id, status);\n-- An expert may have only one open forecast per ticker.\nCREATE UNIQUE INDEX forecasts_one_active_per_ticker ON forecasts(expert_id, ticker) WHERE status = 'active';\n\n-- A published forecast cannot be changed or deleted. The outcome is set once.\nCREATE TRIGGER forecasts_no_delete BEFORE DELETE ON forecasts\nBEGIN SELECT RAISE(ABORT, 'forecast_immutable'); END;\n\nCREATE TRIGGER forecasts_terms_immutable\nBEFORE UPDATE OF expert_id, ticker, name, direction, start_price, target_price, deadline, rationale, published_at ON forecasts\nBEGIN SELECT RAISE(ABORT, 'forecast_immutable'); END;\n\nCREATE TRIGGER forecasts_resolve_once BEFORE UPDATE OF status, result_price ON forecasts\nWHEN OLD.status <> 'active'\nBEGIN SELECT RAISE(ABORT, 'forecast_already_resolved'); END;\n\nCREATE TABLE forecast_comments (\n  id          TEXT PRIMARY KEY,\n  forecast_id TEXT NOT NULL REFERENCES forecasts(id),\n  text        TEXT NOT NULL,\n  created_at  TEXT NOT NULL\n);\n\n-- A course someone has bought cannot be deleted (only hidden).\nCREATE TRIGGER courses_keep_purchased BEFORE DELETE ON courses\nWHEN EXISTS (SELECT 1 FROM enrollments WHERE course_id = OLD.id)\nBEGIN SELECT RAISE(ABORT, 'course_has_students'); END;\n\n-- Reviews are never deleted: on violation, moderation hides them with the hidden flag.\n-- Only a buyer can leave a review, and a purchased course cannot be deleted, so the cascade never reaches here.\nCREATE TRIGGER reviews_no_delete BEFORE DELETE ON reviews\nBEGIN SELECT RAISE(ABORT, 'review_immutable'); END;\n";
 
   // server/migrations/002_products.sql
-  var products_default = "-- Dal, этап 2: общая модель продуктов для режимов «Работа с экспертом», «Сообщество» и «Идеи и аналитика».\n-- Курсы остаются в своих таблицах (у них модули, уроки и видео). Все остальные продукты устроены одинаково:\n-- автор, название, описание, цена, обложка, отзывы, рейтинг, модерация. Различаются только типом.\n--   experts:   consultation (одна встреча), personal (пакет встреч), mentorship (сопровождение — пакет встреч)\n--   community: clubs (закрытый клуб: встречи и чат), chats (чат с экспертом и участниками) — подписка\n--   ideas:     investment (инвестиционная идея), reviews (обзор рынка или компании) — материал, бесплатный или платный\n\nCREATE TABLE products (\n  id              TEXT PRIMARY KEY,\n  expert_id       TEXT NOT NULL REFERENCES users(id),\n  mode            TEXT NOT NULL CHECK (mode IN ('experts', 'community', 'ideas')),\n  type            TEXT NOT NULL CHECK (type IN ('consultation', 'personal', 'mentorship', 'clubs', 'chats', 'investment', 'reviews')),\n  title           TEXT NOT NULL DEFAULT '',\n  description     TEXT NOT NULL DEFAULT '',\n  price           INTEGER CHECK (price IS NULL OR price >= 0),\n  cover           TEXT,\n  status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published', 'hidden')),\n  duration_min    INTEGER CHECK (duration_min IS NULL OR duration_min BETWEEN 15 AND 240),  -- длительность встречи\n  sessions        INTEGER CHECK (sessions IS NULL OR sessions BETWEEN 1 AND 52),            -- встреч в пакете\n  period_days     INTEGER CHECK (period_days IS NULL OR period_days BETWEEN 7 AND 365),     -- срок подписки\n  meeting_url     TEXT,     -- ссылка на звонок или встречи клуба: видна только купившим\n  schedule_note   TEXT,     -- расписание встреч клуба словами\n  content         TEXT,     -- текст материала идеи или обзора\n  moderation_note TEXT,\n  submitted_at    TEXT,\n  published_at    TEXT,\n  created_at      TEXT NOT NULL,\n  updated_at      TEXT NOT NULL,\n  CHECK ((mode = 'experts' AND type IN ('consultation', 'personal', 'mentorship'))\n      OR (mode = 'community' AND type IN ('clubs', 'chats'))\n      OR (mode = 'ideas' AND type IN ('investment', 'reviews')))\n);\nCREATE INDEX products_expert ON products(expert_id);\nCREATE INDEX products_status ON products(status, mode);\n\n-- Покупка продукта. Для встреч — число встреч в пакете, для подписок — срок действия.\nCREATE TABLE product_purchases (\n  id             TEXT PRIMARY KEY,\n  user_id        TEXT NOT NULL REFERENCES users(id),\n  product_id     TEXT NOT NULL REFERENCES products(id) ON DELETE RESTRICT,\n  price_paid     INTEGER NOT NULL CHECK (price_paid >= 0),\n  commission     INTEGER NOT NULL CHECK (commission >= 0),\n  status         TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'refunded')),\n  sessions_total INTEGER,\n  expires_at     TEXT,\n  created_at     TEXT NOT NULL,\n  refunded_at    TEXT,\n  UNIQUE (user_id, product_id)\n);\nCREATE INDEX product_purchases_product ON product_purchases(product_id);\n\n-- Продление подписки — отдельная продажа (для дохода эксперта).\nCREATE TABLE product_renewals (\n  id          TEXT PRIMARY KEY,\n  purchase_id TEXT NOT NULL REFERENCES product_purchases(id),\n  price_paid  INTEGER NOT NULL CHECK (price_paid >= 0),\n  commission  INTEGER NOT NULL CHECK (commission >= 0),\n  created_at  TEXT NOT NULL\n);\n\n-- Слоты расписания эксперта для встреч. Занятый слот нельзя удалить.\nCREATE TABLE product_slots (\n  id          TEXT PRIMARY KEY,\n  product_id  TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,\n  starts_at   TEXT NOT NULL,\n  booked_by   TEXT REFERENCES users(id),\n  purchase_id TEXT REFERENCES product_purchases(id),\n  booked_at   TEXT,\n  UNIQUE (product_id, starts_at)\n);\nCREATE INDEX product_slots_user ON product_slots(booked_by);\n\nCREATE TRIGGER product_slots_keep_booked BEFORE DELETE ON product_slots\nWHEN OLD.booked_by IS NOT NULL AND EXISTS (SELECT 1 FROM products WHERE id = OLD.product_id)\nBEGIN SELECT RAISE(ABORT, 'slot_booked'); END;\n\nCREATE TABLE product_messages (\n  id         TEXT PRIMARY KEY,\n  product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,\n  user_id    TEXT NOT NULL REFERENCES users(id),\n  text       TEXT NOT NULL,\n  created_at TEXT NOT NULL\n);\nCREATE INDEX product_messages_product ON product_messages(product_id, created_at);\n\nCREATE TABLE product_reviews (\n  id         TEXT PRIMARY KEY,\n  product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,\n  user_id    TEXT NOT NULL REFERENCES users(id),\n  rating     INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),\n  text       TEXT NOT NULL,\n  created_at TEXT NOT NULL,\n  reply      TEXT,\n  replied_at TEXT,\n  hidden     INTEGER NOT NULL DEFAULT 0 CHECK (hidden IN (0, 1)),\n  UNIQUE (product_id, user_id)\n);\nCREATE TRIGGER product_reviews_no_delete BEFORE DELETE ON product_reviews\nBEGIN SELECT RAISE(ABORT, 'review_immutable'); END;\n\nCREATE TABLE product_review_reports (\n  id          TEXT PRIMARY KEY,\n  review_id   TEXT NOT NULL REFERENCES product_reviews(id),\n  reporter_id TEXT NOT NULL REFERENCES users(id),\n  reason      TEXT NOT NULL,\n  status      TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'kept', 'removed')),\n  created_at  TEXT NOT NULL,\n  decided_at  TEXT,\n  decided_by  TEXT REFERENCES users(id)\n);\n\nCREATE TRIGGER products_keep_purchased BEFORE DELETE ON products\nWHEN EXISTS (SELECT 1 FROM product_purchases WHERE product_id = OLD.id)\nBEGIN SELECT RAISE(ABORT, 'course_has_students'); END;\n\n-- Избранное: курсы и продукты.\nCREATE TABLE favorites (\n  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,\n  item_id    TEXT NOT NULL,\n  created_at TEXT NOT NULL,\n  PRIMARY KEY (user_id, item_id)\n);\n\n-- Загруженное фото профиля (ученика или эксперта) и соцсети эксперта.\nALTER TABLE users ADD COLUMN avatar_file TEXT;\nALTER TABLE expert_profiles ADD COLUMN socials TEXT NOT NULL DEFAULT '{}';\n";
+  var products_default = `-- Dal, stage 2: a shared product model for the "Work with an expert", "Community" and "Ideas & analysis" modes.
+-- Courses stay in their own tables (they have modules, lessons and videos). All other products share one shape:
+-- author, title, description, price, cover, reviews, rating, moderation. They differ only by type.
+--   experts:   consultation (single session), personal (session package), mentorship (long-term support, session package)
+--   community: clubs (private club: meetings and chat), chats (chat with the expert and members): subscription
+--   ideas:     investment (investment idea), reviews (market or company review): material, free or paid
+
+CREATE TABLE products (
+  id              TEXT PRIMARY KEY,
+  expert_id       TEXT NOT NULL REFERENCES users(id),
+  mode            TEXT NOT NULL CHECK (mode IN ('experts', 'community', 'ideas')),
+  type            TEXT NOT NULL CHECK (type IN ('consultation', 'personal', 'mentorship', 'clubs', 'chats', 'investment', 'reviews')),
+  title           TEXT NOT NULL DEFAULT '',
+  description     TEXT NOT NULL DEFAULT '',
+  price           INTEGER CHECK (price IS NULL OR price >= 0),
+  cover           TEXT,
+  status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'review', 'published', 'hidden')),
+  duration_min    INTEGER CHECK (duration_min IS NULL OR duration_min BETWEEN 15 AND 240),  -- session length
+  sessions        INTEGER CHECK (sessions IS NULL OR sessions BETWEEN 1 AND 52),            -- sessions in the package
+  period_days     INTEGER CHECK (period_days IS NULL OR period_days BETWEEN 7 AND 365),     -- subscription period
+  meeting_url     TEXT,     -- call or club meeting link: visible to buyers only
+  schedule_note   TEXT,     -- club meeting schedule in plain words
+  content         TEXT,     -- text of an idea or review material
+  moderation_note TEXT,
+  submitted_at    TEXT,
+  published_at    TEXT,
+  created_at      TEXT NOT NULL,
+  updated_at      TEXT NOT NULL,
+  CHECK ((mode = 'experts' AND type IN ('consultation', 'personal', 'mentorship'))
+      OR (mode = 'community' AND type IN ('clubs', 'chats'))
+      OR (mode = 'ideas' AND type IN ('investment', 'reviews')))
+);
+CREATE INDEX products_expert ON products(expert_id);
+CREATE INDEX products_status ON products(status, mode);
+
+-- Product purchase. For sessions: number of sessions in the package; for subscriptions: validity period.
+CREATE TABLE product_purchases (
+  id             TEXT PRIMARY KEY,
+  user_id        TEXT NOT NULL REFERENCES users(id),
+  product_id     TEXT NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+  price_paid     INTEGER NOT NULL CHECK (price_paid >= 0),
+  commission     INTEGER NOT NULL CHECK (commission >= 0),
+  status         TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'refunded')),
+  sessions_total INTEGER,
+  expires_at     TEXT,
+  created_at     TEXT NOT NULL,
+  refunded_at    TEXT,
+  UNIQUE (user_id, product_id)
+);
+CREATE INDEX product_purchases_product ON product_purchases(product_id);
+
+-- A subscription renewal is a separate sale (for expert income).
+CREATE TABLE product_renewals (
+  id          TEXT PRIMARY KEY,
+  purchase_id TEXT NOT NULL REFERENCES product_purchases(id),
+  price_paid  INTEGER NOT NULL CHECK (price_paid >= 0),
+  commission  INTEGER NOT NULL CHECK (commission >= 0),
+  created_at  TEXT NOT NULL
+);
+
+-- Expert schedule slots for sessions. A booked slot cannot be deleted.
+CREATE TABLE product_slots (
+  id          TEXT PRIMARY KEY,
+  product_id  TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  starts_at   TEXT NOT NULL,
+  booked_by   TEXT REFERENCES users(id),
+  purchase_id TEXT REFERENCES product_purchases(id),
+  booked_at   TEXT,
+  UNIQUE (product_id, starts_at)
+);
+CREATE INDEX product_slots_user ON product_slots(booked_by);
+
+CREATE TRIGGER product_slots_keep_booked BEFORE DELETE ON product_slots
+WHEN OLD.booked_by IS NOT NULL AND EXISTS (SELECT 1 FROM products WHERE id = OLD.product_id)
+BEGIN SELECT RAISE(ABORT, 'slot_booked'); END;
+
+CREATE TABLE product_messages (
+  id         TEXT PRIMARY KEY,
+  product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  user_id    TEXT NOT NULL REFERENCES users(id),
+  text       TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX product_messages_product ON product_messages(product_id, created_at);
+
+CREATE TABLE product_reviews (
+  id         TEXT PRIMARY KEY,
+  product_id TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  user_id    TEXT NOT NULL REFERENCES users(id),
+  rating     INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  text       TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  reply      TEXT,
+  replied_at TEXT,
+  hidden     INTEGER NOT NULL DEFAULT 0 CHECK (hidden IN (0, 1)),
+  UNIQUE (product_id, user_id)
+);
+CREATE TRIGGER product_reviews_no_delete BEFORE DELETE ON product_reviews
+BEGIN SELECT RAISE(ABORT, 'review_immutable'); END;
+
+CREATE TABLE product_review_reports (
+  id          TEXT PRIMARY KEY,
+  review_id   TEXT NOT NULL REFERENCES product_reviews(id),
+  reporter_id TEXT NOT NULL REFERENCES users(id),
+  reason      TEXT NOT NULL,
+  status      TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'kept', 'removed')),
+  created_at  TEXT NOT NULL,
+  decided_at  TEXT,
+  decided_by  TEXT REFERENCES users(id)
+);
+
+CREATE TRIGGER products_keep_purchased BEFORE DELETE ON products
+WHEN EXISTS (SELECT 1 FROM product_purchases WHERE product_id = OLD.id)
+BEGIN SELECT RAISE(ABORT, 'course_has_students'); END;
+
+-- Favorites: courses and products.
+CREATE TABLE favorites (
+  user_id    TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  item_id    TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (user_id, item_id)
+);
+
+-- Uploaded profile photo (student or expert) and expert social links.
+ALTER TABLE users ADD COLUMN avatar_file TEXT;
+ALTER TABLE expert_profiles ADD COLUMN socials TEXT NOT NULL DEFAULT '{}';
+`;
 
   // server/migrations/003_solana.sql
-  var solana_default = "-- Фиксация прогнозов в блокчейне Solana (devnet): подпись транзакции с записью (memo) условий прогноза.\n-- Сама запись в блокчейне неизменяема; здесь хранится ссылка на неё. Запись делается один раз и не меняется.\nCREATE TABLE forecast_anchors (\n  forecast_id TEXT PRIMARY KEY REFERENCES forecasts(id) ON DELETE RESTRICT,\n  cluster     TEXT NOT NULL CHECK (cluster IN ('devnet', 'mainnet-beta')),\n  signature   TEXT NOT NULL UNIQUE,\n  wallet      TEXT NOT NULL,\n  memo        TEXT NOT NULL,\n  created_at  TEXT NOT NULL\n);\nCREATE TRIGGER forecast_anchors_immutable BEFORE UPDATE ON forecast_anchors\nBEGIN SELECT RAISE(ABORT, 'anchor_immutable'); END;\nCREATE TRIGGER forecast_anchors_no_delete BEFORE DELETE ON forecast_anchors\nBEGIN SELECT RAISE(ABORT, 'anchor_immutable'); END;\n";
+  var solana_default = "-- Anchoring forecasts on the Solana blockchain (devnet): signature of the transaction carrying a memo with the forecast terms.\n-- The on-chain record itself is immutable; this table stores a reference to it. It is written once and never changes.\nCREATE TABLE forecast_anchors (\n  forecast_id TEXT PRIMARY KEY REFERENCES forecasts(id) ON DELETE RESTRICT,\n  cluster     TEXT NOT NULL CHECK (cluster IN ('devnet', 'mainnet-beta')),\n  signature   TEXT NOT NULL UNIQUE,\n  wallet      TEXT NOT NULL,\n  memo        TEXT NOT NULL,\n  created_at  TEXT NOT NULL\n);\nCREATE TRIGGER forecast_anchors_immutable BEFORE UPDATE ON forecast_anchors\nBEGIN SELECT RAISE(ABORT, 'anchor_immutable'); END;\nCREATE TRIGGER forecast_anchors_no_delete BEFORE DELETE ON forecast_anchors\nBEGIN SELECT RAISE(ABORT, 'anchor_immutable'); END;\n";
 
   // server/migrations/004_reviews_chain.sql
-  var reviews_chain_default = "-- Отзыв о курсе: оставляется один раз после прохождения всего курса и больше не меняется.\n-- Эксперт может только ответить (reply), модерация — скрыть по жалобе (hidden).\nCREATE TRIGGER reviews_text_immutable BEFORE UPDATE OF course_id, user_id, rating, text, created_at ON reviews\nBEGIN SELECT RAISE(ABORT, 'review_immutable'); END;\n\n-- Фиксация отзыва в Solana (devnet): ссылка на транзакцию с memo (оценка, курс, хеш текста). Один раз, без изменений.\nCREATE TABLE review_anchors (\n  review_id  TEXT PRIMARY KEY REFERENCES reviews(id) ON DELETE RESTRICT,\n  cluster    TEXT NOT NULL CHECK (cluster IN ('devnet', 'mainnet-beta')),\n  signature  TEXT NOT NULL UNIQUE,\n  wallet     TEXT NOT NULL,\n  memo       TEXT NOT NULL,\n  created_at TEXT NOT NULL\n);\nCREATE TRIGGER review_anchors_immutable BEFORE UPDATE ON review_anchors\nBEGIN SELECT RAISE(ABORT, 'anchor_immutable'); END;\nCREATE TRIGGER review_anchors_no_delete BEFORE DELETE ON review_anchors\nBEGIN SELECT RAISE(ABORT, 'anchor_immutable'); END;\n\n-- Вопросы и комментарии под уроком: ученики курса, эксперт курса (отвечает) и модератор.\nCREATE TABLE lesson_comments (\n  id         TEXT PRIMARY KEY,\n  lesson_id  TEXT NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,\n  user_id    TEXT NOT NULL REFERENCES users(id),\n  text       TEXT NOT NULL,\n  created_at TEXT NOT NULL,\n  hidden     INTEGER NOT NULL DEFAULT 0 CHECK (hidden IN (0, 1))\n);\nCREATE INDEX lesson_comments_lesson ON lesson_comments(lesson_id, created_at);\n";
+  var reviews_chain_default = "-- Course review: left once after completing the whole course and never changed afterwards.\n-- The expert can only reply (reply); moderation can hide it after a report (hidden).\nCREATE TRIGGER reviews_text_immutable BEFORE UPDATE OF course_id, user_id, rating, text, created_at ON reviews\nBEGIN SELECT RAISE(ABORT, 'review_immutable'); END;\n\n-- Anchoring a review on Solana (devnet): reference to the transaction with the memo (rating, course, text hash). Written once, never changed.\nCREATE TABLE review_anchors (\n  review_id  TEXT PRIMARY KEY REFERENCES reviews(id) ON DELETE RESTRICT,\n  cluster    TEXT NOT NULL CHECK (cluster IN ('devnet', 'mainnet-beta')),\n  signature  TEXT NOT NULL UNIQUE,\n  wallet     TEXT NOT NULL,\n  memo       TEXT NOT NULL,\n  created_at TEXT NOT NULL\n);\nCREATE TRIGGER review_anchors_immutable BEFORE UPDATE ON review_anchors\nBEGIN SELECT RAISE(ABORT, 'anchor_immutable'); END;\nCREATE TRIGGER review_anchors_no_delete BEFORE DELETE ON review_anchors\nBEGIN SELECT RAISE(ABORT, 'anchor_immutable'); END;\n\n-- Lesson questions and comments: course students, the course expert (who answers) and the moderator.\nCREATE TABLE lesson_comments (\n  id         TEXT PRIMARY KEY,\n  lesson_id  TEXT NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,\n  user_id    TEXT NOT NULL REFERENCES users(id),\n  text       TEXT NOT NULL,\n  created_at TEXT NOT NULL,\n  hidden     INTEGER NOT NULL DEFAULT 0 CHECK (hidden IN (0, 1))\n);\nCREATE INDEX lesson_comments_lesson ON lesson_comments(lesson_id, created_at);\n";
 
   // web/src/entry.ts
   var SEED_VIDEO2 = "/server/seed-assets/demo-lesson.mp4";

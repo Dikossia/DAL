@@ -8,7 +8,7 @@ import { expertPublic, expertBrief } from '../experts.ts';
 import { productCard } from '../products.ts';
 import { reviewMemo, reviewAnchor } from '../anchor.ts';
 
-// Публичная часть: то, что видно без входа.
+// Public part: what is visible without signing in.
 export function registerCatalog(app: App) {
   const { db, router } = app;
 
@@ -22,12 +22,12 @@ export function registerCatalog(app: App) {
   });
 
   router.add({
-    method: 'GET', path: '/health', group: 'Служебное', summary: 'Проверка, что сервер работает.',
+    method: 'GET', path: '/health', group: 'System', summary: 'Check that the server is running.',
     handler: () => ({ ok: true, time: new Date().toISOString() })
   });
 
   router.add({
-    method: 'GET', path: '/catalog/courses', group: 'Каталог', summary: 'Курсы в каталоге. Параметры: category, q (поиск по названию и эксперту), sort = popular | price | price-desc | new, free=1.',
+    method: 'GET', path: '/catalog/courses', group: 'Catalog', summary: 'Catalog courses. Params: category, q (search by title and expert), sort = popular | price | price-desc | new, free=1.',
     handler: ({ query }) => {
       const cat = query.get('category'), q = (query.get('q') || '').trim().toLocaleLowerCase('ru'), sort = query.get('sort') || 'popular';
       let rows = db.all(`SELECT c.*, u.name AS expert_name FROM courses c JOIN users u ON u.id = c.expert_id WHERE c.status = 'published'`);
@@ -45,7 +45,7 @@ export function registerCatalog(app: App) {
   });
 
   router.add({
-    method: 'GET', path: '/catalog/courses/:id', group: 'Каталог', summary: 'Страница курса: описание, программа, бесплатные уроки.',
+    method: 'GET', path: '/catalog/courses/:id', group: 'Catalog', summary: 'Course page: description, curriculum, free lessons.',
     handler: ({ params }) => {
       const c = getCourse(db, params.id);
       if (c.status !== 'published') throw notFound('Курс не найден');
@@ -54,7 +54,7 @@ export function registerCatalog(app: App) {
   });
 
   router.add({
-    method: 'GET', path: '/catalog/courses/:id/reviews', group: 'Каталог', summary: 'Отзывы о курсе с ответами эксперта, записью для Solana (memo) и ссылкой на транзакцию, если отзыв зафиксирован.',
+    method: 'GET', path: '/catalog/courses/:id/reviews', group: 'Catalog', summary: 'Course reviews with expert replies, the Solana record (memo) and a transaction link if the review is anchored.',
     handler: ({ user, params }) => {
       const c = getCourse(db, params.id);
       if (c.status !== 'published') throw notFound('Курс не найден');
@@ -68,12 +68,12 @@ export function registerCatalog(app: App) {
   });
 
   router.add({
-    method: 'GET', path: '/experts', group: 'Каталог', summary: 'Эксперты с рейтингом и статистикой прогнозов.',
+    method: 'GET', path: '/experts', group: 'Catalog', summary: 'Experts with ratings and forecast stats.',
     handler: () => db.all(`${expertRow} WHERE u.role = 'expert' AND p.verified_at IS NOT NULL ORDER BY u.name`).map(r => expertPublic(db, r))
   });
 
   router.add({
-    method: 'GET', path: '/experts/:id', group: 'Каталог', summary: 'Страница учителя: профиль, соцсети, рейтинг в каждом режиме, курсы и продукты в каталоге, прогнозы.',
+    method: 'GET', path: '/experts/:id', group: 'Catalog', summary: 'Teacher page: profile, social links, rating per mode, catalog courses and products, forecasts.',
     handler: ({ params }) => {
       const row = db.get(`${expertRow} WHERE u.id = ? AND u.role = 'expert'`, params.id);
       if (!row) throw notFound('Эксперт не найден');
@@ -84,7 +84,7 @@ export function registerCatalog(app: App) {
   });
 
   router.add({
-    method: 'GET', path: '/forecasts', group: 'Каталог', summary: 'Журнал прогнозов. Параметры: expert, status = active | success | miss | done.',
+    method: 'GET', path: '/forecasts', group: 'Catalog', summary: 'Forecast log. Params: expert, status = active | success | miss | done.',
     handler: ({ query }) => {
       const expert = query.get('expert'), status = query.get('status');
       let rows = db.all(`SELECT f.*, u.name AS expert_name FROM forecasts f JOIN users u ON u.id = f.expert_id ORDER BY f.published_at DESC`);
@@ -96,7 +96,7 @@ export function registerCatalog(app: App) {
   });
 
   router.add({
-    method: 'GET', path: '/media/covers/:file', group: 'Служебное', summary: 'Загруженные обложки курсов.',
+    method: 'GET', path: '/media/covers/:file', group: 'System', summary: 'Uploaded course covers.',
     handler: ctx => {
       if (!/^[\w-]+\.(jpg|png|webp)$/.test(ctx.params.file)) throw notFound();
       sendFile(ctx.req, ctx.res, path.join(app.storageDir, 'covers', ctx.params.file));

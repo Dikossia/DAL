@@ -23,7 +23,7 @@ export function verifyPassword(password: string, stored: string): boolean {
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
-// В базе хранится только хеш токена: утечка базы не даёт войти от чужого имени.
+// Only the token hash is stored: a database leak does not let anyone sign in as another user.
 export function createSession(db: DB, userId: string): { token: string; expiresAt: string } {
   const token = randomBytes(32).toString('base64url');
   const now = new Date(), expires = new Date(now.getTime() + RULES.sessionDays * 864e5);
@@ -38,7 +38,7 @@ export function dropSession(db: DB, token: string) {
 export function tokenFrom(req: http.IncomingMessage, url: URL): string | null {
   const h = req.headers.authorization;
   if (h && h.startsWith('Bearer ')) return h.slice(7).trim();
-  // Тег <video> не умеет передавать заголовки, поэтому для просмотра видео токен можно передать в адресе.
+  // The <video> tag cannot send headers, so for video playback the token may be passed in the URL.
   if ((req.method === 'GET' || req.method === 'HEAD') && url.searchParams.get('token')) return url.searchParams.get('token');
   return null;
 }
@@ -51,7 +51,7 @@ export function userFromToken(db: DB, token: string | null): User | null {
   return row ?? null;
 }
 
-// Ограничение подбора пароля: не больше N неудачных попыток за окно.
+// Password brute-force limit: at most N failed attempts per window.
 export function createLoginLimiter() {
   const fails = new Map<string, { count: number; until: number }>();
   return {

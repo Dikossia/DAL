@@ -1,9 +1,9 @@
--- Отзыв о курсе: оставляется один раз после прохождения всего курса и больше не меняется.
--- Эксперт может только ответить (reply), модерация — скрыть по жалобе (hidden).
+-- Course review: left once after completing the whole course and never changed afterwards.
+-- The expert can only reply (reply); moderation can hide it after a report (hidden).
 CREATE TRIGGER reviews_text_immutable BEFORE UPDATE OF course_id, user_id, rating, text, created_at ON reviews
 BEGIN SELECT RAISE(ABORT, 'review_immutable'); END;
 
--- Фиксация отзыва в Solana (devnet): ссылка на транзакцию с memo (оценка, курс, хеш текста). Один раз, без изменений.
+-- Anchoring a review on Solana (devnet): reference to the transaction with the memo (rating, course, text hash). Written once, never changed.
 CREATE TABLE review_anchors (
   review_id  TEXT PRIMARY KEY REFERENCES reviews(id) ON DELETE RESTRICT,
   cluster    TEXT NOT NULL CHECK (cluster IN ('devnet', 'mainnet-beta')),
@@ -17,7 +17,7 @@ BEGIN SELECT RAISE(ABORT, 'anchor_immutable'); END;
 CREATE TRIGGER review_anchors_no_delete BEFORE DELETE ON review_anchors
 BEGIN SELECT RAISE(ABORT, 'anchor_immutable'); END;
 
--- Вопросы и комментарии под уроком: ученики курса, эксперт курса (отвечает) и модератор.
+-- Lesson questions and comments: course students, the course expert (who answers) and the moderator.
 CREATE TABLE lesson_comments (
   id         TEXT PRIMARY KEY,
   lesson_id  TEXT NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,

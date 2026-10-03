@@ -1,6 +1,6 @@
-// Фиксация прогнозов в Solana (devnet) без сервера и без библиотек:
-// транзакция с программой Memo собирается здесь, подписывает и отправляет её кошелёк Phantom,
-// а проверить запись может любой — чтением транзакции из публичного узла Solana.
+// Anchoring forecasts in Solana (devnet) with no server and no libraries:
+// the Memo program transaction is built here, the Phantom wallet signs and sends it,
+// and anyone can verify the record by reading the transaction from a public Solana node.
 window.DalSolana = (() => {
   'use strict';
   const CLUSTER = 'devnet';
@@ -22,7 +22,7 @@ window.DalSolana = (() => {
   }
   const compact = n => { const o = []; for (;;) { let b = n & 0x7f; n >>= 7; if (n) { o.push(b | 0x80); } else { o.push(b); return o; } } };
 
-  // Транзакция (legacy): 1 подпись (кошелёк платит комиссию), инструкция Memo с текстом.
+  // Legacy transaction: 1 signature (the wallet pays the fee), a Memo instruction with the text.
   function memoTransaction(payer, blockhash, memoText) {
     const data = new TextEncoder().encode(memoText);
     const msg = [1, 0, 1, ...compact(2), ...b58decode(payer), ...b58decode(MEMO_PROGRAM), ...b58decode(blockhash),
@@ -49,7 +49,7 @@ window.DalSolana = (() => {
   async function balance(address) { return (await rpc('getBalance', [address, { commitment: 'confirmed' }])).value / 1e9; }
   async function airdrop(address) { return rpc('requestAirdrop', [address, 1e9]); }
 
-  // Записать текст в блокчейн. Возвращает подпись транзакции.
+  // Write text to the blockchain. Returns the transaction signature.
   async function anchor(memoText) {
     const wallet = await connect();
     const { value } = await rpc('getLatestBlockhash', [{ commitment: 'finalized' }]);
@@ -59,7 +59,7 @@ window.DalSolana = (() => {
     return { signature, wallet };
   }
 
-  // Проверка: читаем транзакцию из Solana и сравниваем memo с условиями прогноза на сайте.
+  // Verification: read the transaction from Solana and compare the memo with the forecast terms on the site.
   async function verify(signature, expectedMemo) {
     const tx = await rpc('getTransaction', [signature, { encoding: 'jsonParsed', commitment: 'confirmed', maxSupportedTransactionVersion: 0 }]);
     if (!tx) return { found: false };
@@ -72,7 +72,7 @@ window.DalSolana = (() => {
   return { CLUSTER, anchor, verify, connect, balance, airdrop, explorer, hasWallet: () => !!provider(), _memoTransaction: memoTransaction, _b58encode: b58encode, _b58decode: b58decode };
 })();
 
-// Кнопка кошелька в шапке: подключение Phantom, адрес, баланс в Devnet, тестовые SOL, ссылка на Explorer.
+// Wallet button in the header: Phantom connection, address, Devnet balance, test SOL, Explorer link.
 (() => {
   'use strict';
   const S = window.DalSolana;
@@ -116,7 +116,7 @@ window.DalSolana = (() => {
       } catch (err) { pop.insertAdjacentHTML('beforeend', `<p class="wallet-err">${esc(err.message || 'Ошибка')}</p>`); }
     });
     document.addEventListener('click', () => { if (!pop.hidden) pop.hidden = true; });
-    // Если сайт уже разрешён в Phantom, подключаемся без окна.
+    // If the site is already approved in Phantom, connect without a popup.
     setTimeout(() => provider()?.connect?.({ onlyIfTrusted: true }).then(r => { address = (r?.publicKey || provider().publicKey)?.toString() || ''; paint(); }).catch(() => {}), 600);
     const st = document.createElement('style');
     st.textContent = '.wallet-wrap{position:relative}.wallet-btn{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 13px;border-radius:16px;border:1px solid #c9b8ff;background:linear-gradient(135deg,#9945ff1a,#14f1951a);color:var(--text,#222);font:700 11px Manrope,Arial,sans-serif;cursor:pointer;white-space:nowrap}.wallet-btn:hover{border-color:#9945ff}.wallet-dot{width:7px;height:7px;border-radius:50%;background:#14c784}.wallet-pop{position:absolute;right:0;top:40px;width:290px;background:var(--surface,#fff);border:1px solid var(--line,#ddd);border-radius:10px;box-shadow:0 16px 50px #1b332b26;padding:16px;z-index:60;font:12px/1.6 Manrope,Arial,sans-serif;color:var(--text,#222)}.wallet-pop strong{font-size:13px}.wallet-pop p{margin:6px 0 12px;color:var(--muted,#777)}.wallet-addr{word-break:break-all;font:11px/1.5 ui-monospace,Consolas,monospace;color:var(--text,#222)!important;background:var(--subtle,#f3f3f3);padding:8px;border-radius:6px}.wallet-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line,#eee)}.wallet-main{display:block;width:100%;margin-top:12px;padding:10px;border:0;border-radius:6px;background:#6c47d9;color:#fff;font:700 12px Manrope,Arial,sans-serif;text-align:center;cursor:pointer;text-decoration:none}.wallet-link{display:block;width:100%;margin-top:8px;background:none;border:0;padding:4px;color:#6c47d9;font:700 11px Manrope,Arial,sans-serif;text-align:center;cursor:pointer;text-decoration:none}.wallet-err{color:#ab5442!important}@media(max-width:760px){.wallet-btn{padding:0 9px;font-size:10px}.wallet-pop{position:fixed;left:12px;right:12px;width:auto;top:70px}}';

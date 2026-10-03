@@ -1,5 +1,5 @@
 import { setFile } from './fs.ts';
-// Загрузка файла: тело запроса — Blob, его размер проверяется тем же счётчиком, что и на сервере.
+// File upload: the request body is a Blob; its size is checked by the same counter as on the server.
 export async function pipeline(req: any, counter: any, ws: any) {
   const blob: Blob = req.__blob;
   if (!blob) throw new Error('empty');

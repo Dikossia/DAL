@@ -1,7 +1,5 @@
 # Dal: backend
 
-Русская версия: [README.ru.md](README.ru.md)
-
 A Node.js and TypeScript server with **no external dependencies**: no `npm install` needed. The database is SQLite, built into Node.js. It is stored as a single file in `server/data`. Uploaded videos and covers are in `server/storage`.
 
 ## Running on Windows

@@ -10,7 +10,7 @@ import { productChecklist, productStats, kindOf, purchaseState } from '../produc
 const E: ['expert'] = ['expert'];
 const MONTHS = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
 
-// Все продажи эксперта: курсы, продукты и продления подписок.
+// All of an expert's sales: courses, products and subscription renewals.
 const SALES = `
   SELECT * FROM (
     SELECT e.created_at, e.price_paid, e.commission, c.id AS item_id, c.title, 'course' AS kind, u.name AS user_name, c.expert_id
@@ -23,7 +23,7 @@ const SALES = `
       FROM product_renewals r JOIN product_purchases pp ON pp.id = r.purchase_id JOIN products p ON p.id = pp.product_id JOIN users u ON u.id = pp.user_id WHERE pp.status = 'active'
   ) WHERE expert_id = ?`;
 
-// Соцсети: принимаем ссылку или @ник и приводим к ссылке.
+// Social links: accept a URL or @handle and normalize to a URL.
 const SOCIAL_HOSTS: Record<string, RegExp> = { telegram: /^(t\.me|telegram\.me)$/, instagram: /(^|\.)instagram\.com$/, youtube: /(^|\.)(youtube\.com|youtu\.be)$/, linkedin: /(^|\.)linkedin\.com$/, website: /./ };
 const HANDLE_BASE: Record<string, string> = { telegram: 'https://t.me/', instagram: 'https://instagram.com/', youtube: 'https://youtube.com/@' };
 function normalizeSocial(key: string, raw: string): string {
@@ -63,7 +63,7 @@ export function registerStudioOther(app: App) {
   };
 
   router.add({
-    method: 'GET', path: '/studio/overview', group: 'Студия: обзор', summary: 'Сводка кабинета: ученики, продажи, рейтинг, ближайшие встречи и список «Требует внимания».', auth: E,
+    method: 'GET', path: '/studio/overview', group: 'Studio: overview', summary: 'Dashboard summary: students, sales, rating, upcoming sessions and the "Needs attention" list.', auth: E,
     handler: ({ user }) => {
       const id = user!.id;
       const courses = db.all('SELECT * FROM courses WHERE expert_id = ?', id);
@@ -105,7 +105,7 @@ export function registerStudioOther(app: App) {
   });
 
   router.add({
-    method: 'GET', path: '/studio/students', group: 'Студия: ученики', summary: 'Ученики курсов и покупатели продуктов: сокращённое имя и прогресс. Почта и телефоны не отдаются. Параметр item — курс или продукт.', auth: E,
+    method: 'GET', path: '/studio/students', group: 'Studio: students', summary: 'Course students and product buyers: shortened name and progress. Emails and phone numbers are not returned. Param item: a course or product.', auth: E,
     handler: ({ user, query }) => {
       const item = query.get('item') || query.get('course');
       const courses = db.all(
@@ -128,9 +128,9 @@ export function registerStudioOther(app: App) {
     }
   });
 
-  // Отзывы о курсах и о продуктах — в одном списке.
+  // Course and product reviews in a single list.
   router.add({
-    method: 'GET', path: '/studio/reviews', group: 'Студия: отзывы', summary: 'Отзывы о моих курсах и продуктах. Параметр unanswered=1 — только без ответа.', auth: E,
+    method: 'GET', path: '/studio/reviews', group: 'Studio: reviews', summary: 'Reviews of my courses and products. Param unanswered=1: only unanswered ones.', auth: E,
     handler: ({ user, query }) => {
       const course = db.all(
         `SELECT r.*, u.name AS author, c.title AS item_title, c.id AS item_id, 'course' AS kind,
@@ -156,8 +156,8 @@ export function registerStudioOther(app: App) {
   };
 
   router.add({
-    method: 'PUT', path: '/studio/reviews/:id/reply', group: 'Студия: отзывы', summary: 'Публичный ответ на отзыв (можно изменить). Сам отзыв эксперт изменить или удалить не может.', auth: E,
-    body: '{ text: 2–1000 символов }',
+    method: 'PUT', path: '/studio/reviews/:id/reply', group: 'Studio: reviews', summary: 'Public reply to a review (editable). The expert cannot change or delete the review itself.', auth: E,
+    body: '{ text: 2–1000 chars }',
     handler: ({ user, params, body }) => {
       const r = ownReview(user!.id, params.id);
       const b = parse<{ text: string }>(body, { text: str({ min: 2, max: 1000 }) });
@@ -167,7 +167,7 @@ export function registerStudioOther(app: App) {
   });
 
   router.add({
-    method: 'POST', path: '/studio/reviews/:id/report', group: 'Студия: отзывы', summary: 'Пожаловаться на отзыв. Он остаётся видимым, пока модерация не решит.', auth: E,
+    method: 'POST', path: '/studio/reviews/:id/report', group: 'Studio: reviews', summary: 'Report a review. It stays visible until moderation decides.', auth: E,
     body: '{ reason: "spam" | "abuse" | "offtopic" | "other" }',
     handler: ({ user, params, body }) => {
       const r = ownReview(user!.id, params.id);
@@ -179,12 +179,12 @@ export function registerStudioOther(app: App) {
   });
 
   for (const method of ['PATCH', 'DELETE'] as const) router.add({
-    method, path: '/studio/reviews/:id', group: 'Студия: отзывы', summary: 'Изменить или удалить отзыв эксперт не может — всегда 409.', auth: E,
+    method, path: '/studio/reviews/:id', group: 'Studio: reviews', summary: 'Experts cannot change or delete a review: always 409.', auth: E,
     handler: () => { throw conflict('review_immutable', 'Отзывы нельзя изменить или удалить. Пожалуйтесь на отзыв, решение примет модерация.'); }
   });
 
   router.add({
-    method: 'GET', path: '/studio/income', group: 'Студия: доход', summary: 'Продажи курсов и продуктов по месяцам, по каждому курсу и продукту, последние продажи и ближайшая выплата.', auth: E,
+    method: 'GET', path: '/studio/income', group: 'Studio: income', summary: 'Course and product sales by month and per item, recent sales and the next payout.', auth: E,
     handler: ({ user }) => {
       const id = user!.id;
       const byItem = [
@@ -208,13 +208,13 @@ export function registerStudioOther(app: App) {
   });
 
   router.add({
-    method: 'GET', path: '/studio/profile', group: 'Студия: профиль', summary: 'Мой публичный профиль, соцсети и запросы на изменение.', auth: E,
+    method: 'GET', path: '/studio/profile', group: 'Studio: profile', summary: 'My public profile, social links and change requests.', auth: E,
     handler: ({ user }) => profile(user!.id)
   });
 
   router.add({
-    method: 'PATCH', path: '/studio/profile', group: 'Студия: профиль', summary: 'Изменить специализацию, описание, достижения и соцсети. Видно ученикам сразу.', auth: E,
-    body: `{ specialization?, bio?, achievements?: string[], socials?: { ${SOCIALS.join(', ')} } — ссылка или @ник }`,
+    method: 'PATCH', path: '/studio/profile', group: 'Studio: profile', summary: 'Change specialization, bio, achievements and social links. Visible to students immediately.', auth: E,
+    body: `{ specialization?, bio?, achievements?: string[], socials?: { ${SOCIALS.join(', ')} }: URL or @handle }`,
     handler: ({ user, body }) => {
       const b = parse<{ specialization?: string; bio?: string; achievements?: string[]; socials?: Record<string, unknown> }>(body, {
         specialization: str({ min: 2, max: 80, optional: true }), bio: str({ max: 800, optional: true }), achievements: strList({ optional: true, maxItems: 8, maxLen: 120 }),
@@ -239,7 +239,7 @@ export function registerStudioOther(app: App) {
   });
 
   router.add({
-    method: 'POST', path: '/studio/profile/requests', group: 'Студия: профиль', summary: 'Запросить изменение имени или стажа. Вступит в силу после модерации.', auth: E,
+    method: 'POST', path: '/studio/profile/requests', group: 'Studio: profile', summary: 'Request a change of name or years of experience. Takes effect after moderation.', auth: E,
     body: '{ field: "name" | "experience", value }',
     handler: ({ user, body }) => {
       const b = parse<{ field: 'name' | 'experience'; value: string }>(body, { field: oneOf(['name', 'experience'] as const), value: str({ min: 2, max: 60 }) });

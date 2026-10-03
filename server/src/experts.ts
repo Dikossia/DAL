@@ -1,7 +1,7 @@
 import type { DB, Row } from './db.ts';
 import { MODES } from './rules.ts';
 
-// Фото: загруженное пользователем или из библиотеки демо-портретов.
+// Photo: uploaded by the user or taken from the demo portrait library.
 export const avatarUrl = (row: { avatar_file?: string | null; avatar?: string | null }): string | null =>
   row.avatar_file ? `/media/avatars/${row.avatar_file}` : row.avatar ? `/assets/${row.avatar}.jpg` : null;
 
@@ -12,7 +12,7 @@ export const expertBrief = (db: DB, id: string) => {
 
 const round2 = (n: number | null) => n == null ? null : Math.round(n * 100) / 100;
 
-// Рейтинг учителя в каждом режиме — по отзывам учеников; общий — среднее арифметическое рейтингов режимов (как в схеме).
+// Teacher rating per mode comes from student reviews; the overall rating is the arithmetic mean of the mode ratings (as in the spec).
 export function expertRatings(db: DB, id: string) {
   const courses = db.get(`SELECT AVG(r.rating) AS avg, COUNT(*) AS n FROM reviews r JOIN courses c ON c.id = r.course_id WHERE c.expert_id = ? AND r.hidden = 0`, id)!;
   const byMode: Record<string, { value: number | null; reviews: number }> = { courses: { value: round2(courses.avg), reviews: courses.n } };

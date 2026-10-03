@@ -5,8 +5,8 @@ import type { DB } from './db.ts';
 import { hashPassword } from './auth.ts';
 import { RULES } from './rules.ts';
 
-// Демо-данные берутся из тех же файлов, что и сайты-прототипы (data.js и studio-data.js),
-// поэтому эксперты, курсы, отзывы и прогнозы совпадают с тем, что видно на макетах.
+// Demo data comes from the same files as the prototype sites (data.js and studio-data.js),
+// so experts, courses, reviews and forecasts match what the mockups show.
 export const DEMO_PASSWORD = 'dal-demo-2026';
 const SEED_VIDEO = 'demo-lesson.mp4';
 
@@ -33,7 +33,7 @@ export function seed(db: DB, siteDir: string, seedDir: string): { accounts: { em
   };
 
   db.tx(() => {
-    // ----- Люди -----
+    // ----- People -----
     addUser('moderator', 'moderator@dal.local', 'Модератор Dal', 'moderator');
     for (const e of DAL.experts) {
       const studio = e.id === STUDIO.expert.id ? STUDIO.expert : null;
@@ -48,7 +48,7 @@ export function seed(db: DB, siteDir: string, seedDir: string): { accounts: { em
     ];
     for (const [id, name] of students) addUser(id, `${id}@dal.local`, name, 'student');
 
-    // ----- Курсы -----
+    // ----- Courses -----
     let n = 0;
     const lessonIds: Record<string, string[]> = {};
     const addCourse = (c: any, expertId: string, modules: { title: string; lessons: { title: string; free: boolean; video: any }[] }[], publishedDaysAgo: number | null) => {
@@ -70,11 +70,11 @@ export function seed(db: DB, siteDir: string, seedDir: string): { accounts: { em
       });
     };
 
-    // Курсы Алии — из кабинета эксперта (с программой и статусами).
+    // Aliya's courses come from the expert dashboard (with curriculum and statuses).
     const studioDays: Record<string, number | null> = { c4: 230, c2: 330, c7: 175, d1: null, d2: null };
     for (const c of STUDIO.courses) addCourse(c, STUDIO.expert.id, c.modules, studioDays[c.id] ?? null);
 
-    // Остальные курсы — из каталога учеников.
+    // The remaining courses come from the student catalog.
     const courseMode = DAL.modes.find((m: any) => m.id === 'courses');
     const generic = ['Основные понятия и постановка задачи', 'Исходные данные и допущения', 'Проверяем гипотезу на примере', 'Обсуждение результатов и ограничений'];
     for (const p of DAL.products.filter((p: any) => p.mode === 'courses' && !STUDIO.courses.some((s: any) => s.id === p.id))) {
@@ -90,7 +90,7 @@ export function seed(db: DB, siteDir: string, seedDir: string): { accounts: { em
         p.expert, modules, 120 + (n % 90));
     }
 
-    // ----- Покупки и прогресс (даты относительно сегодняшнего дня) -----
+    // ----- Purchases and progress (dates relative to today) -----
     const enroll = (user: string, course: string, daysAgo: number, progress: number) => {
       const price = db.get('SELECT price FROM courses WHERE id = ?', course)!.price;
       db.run('INSERT INTO enrollments (id, user_id, course_id, price_paid, commission, created_at) VALUES (?, ?, ?, ?, ?, ?)',
@@ -107,14 +107,14 @@ export function seed(db: DB, siteDir: string, seedDir: string): { accounts: { em
       ['nurlan', 'c3', 25, 0.3], ['sabina', 'c6', 55, 0.4], ['aruzhan', 'c8', 12, 1], ['student', 'c8', 10, 1]
     ] as [string, string, number, number][]).forEach(([u, c, d, p]) => enroll(u, c, d, p));
 
-    // ----- Отзывы -----
+    // ----- Reviews -----
     const authors: Record<string, string> = { 'Аружан К.': 'aruzhan', 'Данияр С.': 'daniyar', 'Мадина Ж.': 'madina', 'Гость 4821': 'guest4821', 'Нурлан Б.': 'nurlan' };
     STUDIO.reviews.forEach((r: any, i: number) => db.run('INSERT INTO reviews (id, course_id, user_id, rating, text, created_at, reply, replied_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       r.id, r.course, authors[r.name], r.rating, r.text, ago(4 + i * 6), r.reply, r.reply ? ago(3 + i * 6) : null));
     db.run('INSERT INTO reviews (id, course_id, user_id, rating, text, created_at) VALUES (?, ?, ?, ?, ?, ?)', 'r6', 'c1', 'madina', 5, 'Понравилось, что можно последовательно разобраться в понятиях и задать вопросы. Особенно полезны примеры.', ago(30));
     db.run('INSERT INTO reviews (id, course_id, user_id, rating, text, created_at) VALUES (?, ?, ?, ?, ?, ?)', 'r7', 'c1', 'daniyar', 4, 'Стало понятнее, на какие исходные данные смотреть. Хотелось бы ещё больше задач для самостоятельного разбора.', ago(15));
 
-    // ----- Вопросы под уроками -----
+    // ----- Lesson questions -----
     const comment = (lesson: string, user: string, text: string, daysAgo: number, hour: number) =>
       db.run('INSERT INTO lesson_comments (id, lesson_id, user_id, text, created_at) VALUES (?, ?, ?, ?, ?)', `lc-${lesson}-${user}-${daysAgo}-${hour}`, lesson, user, text, ago(daysAgo, hour));
     const [c1a, c1b] = lessonIds.c1;
@@ -126,7 +126,7 @@ export function seed(db: DB, siteDir: string, seedDir: string): { accounts: { em
     comment(lessonIds.c8[0], 'aruzhan', 'Можно ли получить таблицу из разбора?', 11, 18);
     comment(lessonIds.c8[0], 'timur', 'Да, ссылка на таблицу в описании урока.', 11, 20);
 
-    // ----- Прогнозы -----
+    // ----- Forecasts -----
     const addForecast = (f: any, expert: string) => {
       db.run(`INSERT INTO forecasts (id, expert_id, ticker, name, direction, start_price, target_price, deadline, rationale, status, result_price, published_at, resolved_at, resolved_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         f.id, expert, f.ticker, f.name, f.direction, f.start, f.target, f.deadline, f.rationale, f.status, f.status === 'active' ? null : f.current,
@@ -138,7 +138,7 @@ export function seed(db: DB, siteDir: string, seedDir: string): { accounts: { em
     addForecast({ id: 's3', ticker: 'NVDA', name: 'NVIDIA', direction: 'up', start: 170, target: 190, current: 164, publishedAt: '2026-09-01', deadline: '2026-09-30', status: 'miss', rationale: 'Условие: цена закрытия 30 сентября не ниже $190. Неуспешный прогноз остаётся в истории.' }, 'timur');
     addForecast({ id: 's4', ticker: 'SPY', name: 'S&P 500 ETF', direction: 'up', start: 620, target: 650, current: 632, publishedAt: '2026-09-20', deadline: '2026-10-20', status: 'active', rationale: 'Условие: цена закрытия 20 октября не ниже $650.' }, 'arman');
 
-    // ----- Продукты: работа с экспертом, сообщество, идеи (из каталога макета) -----
+    // ----- Products: work with an expert, community, ideas (from the mockup catalog) -----
     seedProducts(db, DAL);
   });
   return { accounts };
@@ -224,7 +224,7 @@ function seedProducts(db: DB, DAL: any) {
     db.run('INSERT INTO product_reviews (id, product_id, user_id, rating, text, created_at, reply, replied_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       `pr-${product}-${user}`, product, user, rating, text, at(-daysAgo, 15), reply, reply ? at(-daysAgo + 1, 10) : null);
 
-  // Работа с экспертом
+  // Work with an expert
   const s1 = buy('student', 'e1', 6); book(s1, 'e1', 'student', 3, 15);
   const a1 = buy('aruzhan', 'e1', 40); book(a1, 'e1', 'aruzhan', -30, 18);
   review('e1', 'aruzhan', 5, 'За час разобрали мои цели и составили понятный план. Арман объясняет без давления.', 28, 'Аружан, рад, что план получился понятным!');
@@ -236,7 +236,7 @@ function seedProducts(db: DB, DAL: any) {
   review('e5', 'kamila', 4, 'Регулярные встречи дисциплинируют. Хотелось бы чуть больше материалов между встречами.', 20);
   buy('nurlan', 'e6', 12);
 
-  // Сообщество
+  // Community
   buy('aruzhan', 'g1', 20); buy('erlan', 'g1', 10); buy('timur-o', 'g1', 45, { expiresIn: -15 });
   review('g1', 'aruzhan', 5, 'Разборы компаний в кругу единомышленников — лучшая часть недели.', 8);
   buy('sabina', 'g2', 15); review('g2', 'sabina', 4, 'Хорошие обсуждения, но иногда не успеваю прочитать главу.', 5);
@@ -255,13 +255,13 @@ function seedProducts(db: DB, DAL: any) {
   msg('g4', 'student', 'С какой суммы имеет смысл начинать?', 26);
   msg('g4', 'arman', 'С той, которую вы готовы не трогать несколько лет после того, как отложили резерв на 3–6 месяцев расходов.', 25);
 
-  // Идеи и аналитика
+  // Ideas & analysis
   buy('daniyar', 'i1', 14); review('i1', 'daniyar', 5, 'Понятный чек-лист, применил к двум компаниям из портфеля.', 9);
   buy('student', 'i2', 8); buy('aigerim', 'i2', 6); review('i2', 'aigerim', 4, 'Коротко и по делу. Пример с секторами особенно полезен.', 4);
   buy('erlan', 'i3', 11);
   buy('daniyar', 'i4', 16); buy('kamila', 'i4', 13); review('i4', 'kamila', 5, 'Наконец-то разобралась, почему прибыль и денежный поток — не одно и то же.', 10, 'Камила, спасибо! Рада, что пример помог.');
 
-  // Соцсети демо-экспертов
+  // Demo experts' social links
   const socials: Record<string, object> = {
     arman: { telegram: 'https://t.me/arman_invest_demo', youtube: 'https://youtube.com/@arman_invest_demo' },
     aliya: { telegram: 'https://t.me/aliya_analysis_demo', linkedin: 'https://linkedin.com/in/aliya-demo', website: 'https://example.com/aliya' },

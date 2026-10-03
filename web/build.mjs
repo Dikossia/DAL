@@ -1,4 +1,4 @@
-// Сборка браузерной версии сервера: node web/build.mjs (нужен esbuild).
+// Builds the browser version of the server: node web/build.mjs (requires esbuild).
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -11,7 +11,7 @@ await esbuild.build({
   outfile: path.join(here, 'engine.js'), loader: { '.sql': 'text' }, charset: 'utf8', legalComments: 'none',
   define: { 'import.meta.url': '"file:///server/src/app.ts"', 'process.platform': '"browser"' },
   inject: [shim('buffer.ts')],
-  banner: { js: '// Собрано из server/src командой node web/build.mjs. Не редактируйте вручную.' },
-  plugins: [{ name: 'node-shims', setup(b) { b.onResolve({ filter: /^node:/ }, a => map[a.path] ? { path: shim(map[a.path]) } : { errors: [{ text: 'Нет замены для ' + a.path }] }); } }]
+  banner: { js: '// Built from server/src by node web/build.mjs. Do not edit by hand.' },
+  plugins: [{ name: 'node-shims', setup(b) { b.onResolve({ filter: /^node:/ }, a => map[a.path] ? { path: shim(map[a.path]) } : { errors: [{ text: 'No shim for ' + a.path }] }); } }]
 });
-console.log('web/engine.js собран');
+console.log('web/engine.js built');

@@ -1,4 +1,4 @@
-// Английский словарь интерфейса Dal (ключ — русская строка, {n} — число).
+// English UI dictionary for Dal (key is the Russian string, {n} is a number).
 window.DAL_I18N_EN = {"@channel или ссылка":"@channel or link",
 "@nickname или t.me/…":"@nickname or t.me/…",
 "Dal Studio · Новый продукт":"Dal Studio · New product",

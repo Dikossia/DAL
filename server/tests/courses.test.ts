@@ -11,7 +11,7 @@ before(async () => {
 });
 after(async () => { await t.close(); });
 
-test('полный путь курса: черновик → видео → модерация → каталог → покупка', async () => {
+test('full course lifecycle: draft → video → moderation → catalog → purchase', async () => {
   const created = await t.api('POST', '/studio/courses', { token: aliya, body: { title: 'Денежный поток на практике', category: 'advanced' } });
   assert.equal(created.status, 201);
   const id = created.body.id, moduleId = created.body.modules[0].id;
@@ -27,12 +27,12 @@ test('полный путь курса: черновик → видео → мо
     lessons.push(r.body.lessonId);
   }
 
-  // Без видео на модерацию не отправить: ответ перечисляет, чего не хватает.
+  // Cannot submit without videos: the response lists what is missing.
   r = await t.api('POST', `/studio/courses/${id}/submit`, { token: aliya });
   assert.equal(r.status, 422);
   assert.deepEqual(r.body.error.details, ['Видео загружено во все уроки']);
 
-  // Видео: неверный тип отклоняется, правильный загружается.
+  // Video: wrong type is rejected, correct one is uploaded.
   assert.equal((await t.uploadVideo(aliya, lessons[0], Buffer.from('text'), 'text/plain')).status, 415);
   for (const l of lessons) {
     r = await t.uploadVideo(aliya, l);
@@ -41,18 +41,18 @@ test('полный путь курса: черновик → видео → мо
     assert.equal(r.body.duration, 10);
   }
   const files = fs.readdirSync(path.join(t.storageDir, 'videos', id));
-  assert.equal(files.length, 3, 'файлы лежат в папке курса');
+  assert.equal(files.length, 3, 'files are stored in the course folder');
 
   r = await t.api('POST', `/studio/courses/${id}/submit`, { token: aliya });
   assert.equal(r.status, 200);
   assert.equal(r.body.status, 'review');
 
-  // На модерации курс заморожен.
+  // Course is frozen while in review.
   assert.equal((await t.api('PATCH', `/studio/courses/${id}`, { token: aliya, body: { price: 1 } })).body.error.code, 'course_in_review');
   assert.equal((await t.uploadVideo(aliya, lessons[0])).status, 409);
   assert.equal((await t.api('DELETE', `/studio/courses/${id}`, { token: aliya })).status, 409);
 
-  // Модератор видит курс в очереди и одобряет.
+  // Moderator sees the course in the queue and approves it.
   const queue = await t.api('GET', '/moderation/queue', { token: mod });
   assert.ok(queue.body.courses.some((c: any) => c.id === id));
   r = await t.api('POST', `/moderation/courses/${id}/approve`, { token: mod });
@@ -62,7 +62,7 @@ test('полный путь курса: черновик → видео → мо
   assert.equal(catalog.body.length, 1);
   assert.equal(catalog.body[0].price, 25900);
 
-  // Покупка фиксирует цену: смена цены касается только новых покупок.
+  // Purchase locks the price: a price change affects only new purchases.
   assert.equal((await t.api('POST', `/courses/${id}/enroll`, { token: student })).status, 200);
   assert.equal((await t.api('POST', `/courses/${id}/enroll`, { token: student })).status, 409);
   await t.api('PATCH', `/studio/courses/${id}`, { token: aliya, body: { price: 39900 } });
@@ -71,25 +71,25 @@ test('полный путь курса: черновик → видео → мо
   assert.equal(sale.amount, 25900);
   assert.equal(sale.commission, 5180);
 
-  // Опубликованный курс: уроки и видео не удаляются, видео можно заменить, уроки — добавлять.
+  // Published course: lessons and videos cannot be deleted; videos can be replaced, lessons added.
   assert.equal((await t.api('DELETE', `/studio/lessons/${lessons[0]}`, { token: aliya })).body.error.code, 'course_live');
   assert.equal((await t.api('DELETE', `/studio/lessons/${lessons[0]}/video`, { token: aliya })).status, 409);
   r = await t.uploadVideo(aliya, lessons[0]);
   assert.equal(r.body.updatedAfterPublish, true);
-  assert.equal(fs.readdirSync(path.join(t.storageDir, 'videos', id)).length, 3, 'старый файл удалён при замене');
+  assert.equal(fs.readdirSync(path.join(t.storageDir, 'videos', id)).length, 3, 'old file is removed on replacement');
   assert.equal((await t.api('POST', `/studio/modules/${moduleId}/lessons`, { token: aliya, body: { title: 'Бонус' } })).status, 200);
 
-  // Купленный курс удалить нельзя ни через API, ни напрямую в базе.
+  // A purchased course cannot be deleted, neither via the API nor directly in the DB.
   assert.equal((await t.api('DELETE', `/studio/courses/${id}`, { token: aliya })).body.error.code, 'course_has_students');
   assert.throws(() => t.app.db.run('DELETE FROM courses WHERE id = ?', id), /course_has_students/);
 
-  // Скрытие: пропадает из каталога, купивший сохраняет доступ.
+  // Hiding: removed from the catalog, buyers keep access.
   assert.equal((await t.api('POST', `/studio/courses/${id}/hide`, { token: aliya })).body.status, 'hidden');
   assert.equal((await t.api('GET', `/catalog/courses/${id}`)).status, 404);
   assert.equal((await t.api('GET', `/learning/courses/${id}`, { token: student })).status, 200);
 });
 
-test('бесплатных уроков не больше двух', async () => {
+test('at most two free lessons', async () => {
   const c = await t.api('POST', '/studio/courses', { token: aliya, body: {} });
   const mid = c.body.modules[0].id;
   const ids: string[] = [];
@@ -100,7 +100,7 @@ test('бесплатных уроков не больше двух', async () =>
   assert.equal(third.body.error.code, 'free_limit');
 });
 
-test('черновик: перестановка, удаление уроков, модулей и курса вместе с файлами', async () => {
+test('draft: reordering, deleting lessons, modules and the course along with files', async () => {
   const c = await t.api('POST', '/studio/courses', { token: aliya, body: { title: 'Временный курс' } });
   const id = c.body.id, mid = c.body.modules[0].id;
   const a = (await t.api('POST', `/studio/modules/${mid}/lessons`, { token: aliya, body: { title: 'А' } })).body.lessonId;
@@ -109,14 +109,14 @@ test('черновик: перестановка, удаление уроков,
   assert.deepEqual(r.body.modules[0].lessons.map((l: any) => l.title), ['Б', 'А']);
   assert.equal((await t.api('POST', `/studio/lessons/${b}/move`, { token: aliya, body: { direction: 'up' } })).status, 409);
   await t.uploadVideo(aliya, a);
-  assert.equal((await t.api('DELETE', `/studio/lessons/${a}/video`, { token: aliya })).status, 200, 'в черновике видео удаляется');
+  assert.equal((await t.api('DELETE', `/studio/lessons/${a}/video`, { token: aliya })).status, 200, 'video can be deleted in a draft');
   assert.equal((await t.api('DELETE', `/studio/modules/${mid}`, { token: aliya })).body.error.code, 'last_module');
   await t.uploadVideo(aliya, b);
   assert.equal((await t.api('DELETE', `/studio/courses/${id}`, { token: aliya })).status, 204);
-  assert.equal(fs.existsSync(path.join(t.storageDir, 'videos', id)) ? fs.readdirSync(path.join(t.storageDir, 'videos', id)).length : 0, 0, 'файлы удалены');
+  assert.equal(fs.existsSync(path.join(t.storageDir, 'videos', id)) ? fs.readdirSync(path.join(t.storageDir, 'videos', id)).length : 0, 0, 'files are deleted');
 });
 
-test('чужие курсы не видны и не редактируются', async () => {
+test("other experts' courses are neither visible nor editable", async () => {
   assert.equal((await t.api('GET', '/studio/courses/c4', { token: arman })).status, 404);
   assert.equal((await t.api('PATCH', '/studio/courses/c4', { token: arman, body: { price: 1 } })).status, 404);
   const lesson = t.app.db.get(`SELECT l.id FROM lessons l JOIN modules m ON m.id = l.module_id WHERE m.course_id = 'c4' LIMIT 1`)!.id;
@@ -125,7 +125,7 @@ test('чужие курсы не видны и не редактируются',
   assert.ok(mine.body.every((c: any) => c.expert.id === 'arman'));
 });
 
-test('неподтверждённый эксперт готовит курс, но не отправляет на модерацию', async () => {
+test('unverified expert can prepare a course but not submit it for review', async () => {
   const reg = await t.api('POST', '/auth/register', { body: { email: 'fresh@expert.kz', password: 'secret-123', name: 'Свежий Эксперт', role: 'expert' } });
   const tok = reg.body.token;
   const c = await t.api('POST', '/studio/courses', { token: tok, body: { title: 'Мой первый курс' } });
@@ -135,14 +135,14 @@ test('неподтверждённый эксперт готовит курс, �
   assert.match(r.body.error.message, /подтверждения личности/);
 });
 
-test('модератор возвращает курс с комментарием', async () => {
+test('moderator rejects a course with a note', async () => {
   const r = await t.api('POST', '/moderation/courses/d1/reject', { token: mod, body: { note: 'Во втором уроке нет звука' } });
   assert.equal(r.body.status, 'draft');
   const ov = await t.api('GET', '/studio/overview', { token: aliya });
   assert.ok(ov.body.attention.some((a: any) => a.type === 'rejected' && a.detail.includes('нет звука')));
 });
 
-test('своя обложка: картинка до 5 МБ', async () => {
+test('custom cover: image up to 5 MB', async () => {
   const c = await t.api('POST', '/studio/courses', { token: aliya, body: {} });
   const png = Buffer.from('89504e470d0a1a0a', 'hex');
   let r = await t.api('PUT', `/studio/courses/${c.body.id}/cover`, { token: aliya, raw: png, headers: { 'Content-Type': 'image/png' } });

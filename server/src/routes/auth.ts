@@ -14,8 +14,8 @@ export function registerAuth(app: App) {
   };
 
   router.add({
-    method: 'POST', path: '/auth/register', group: 'Вход', summary: 'Регистрация ученика или эксперта. Сразу возвращает токен.',
-    body: '{ email, password (от 8 символов), name, role: "student" | "expert" }',
+    method: 'POST', path: '/auth/register', group: 'Account', summary: 'Register a student or expert. Returns a token immediately.',
+    body: '{ email, password (8+ chars), name, role: "student" | "expert" }',
     handler: ({ body }) => {
       const b = parse<{ email: string; password: string; name: string; role: 'student' | 'expert' }>(body, {
         email: str({ max: 120, pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, patternMsg: 'Некорректный адрес почты' }),
@@ -33,7 +33,7 @@ export function registerAuth(app: App) {
   });
 
   router.add({
-    method: 'POST', path: '/auth/login', group: 'Вход', summary: 'Вход по почте и паролю. Возвращает токен для заголовка Authorization: Bearer <токен>.',
+    method: 'POST', path: '/auth/login', group: 'Account', summary: 'Sign in with email and password. Returns a token for the Authorization: Bearer <token> header.',
     body: '{ email, password }',
     handler: ({ body }) => {
       const b = parse<{ email: string; password: string }>(body, { email: str({ max: 120 }), password: str({ max: 200, trim: false }) });
@@ -50,17 +50,17 @@ export function registerAuth(app: App) {
   });
 
   router.add({
-    method: 'POST', path: '/auth/logout', group: 'Вход', summary: 'Выход: токен перестаёт действовать.', auth: 'user',
+    method: 'POST', path: '/auth/logout', group: 'Account', summary: 'Sign out: the token stops working.', auth: 'user',
     handler: ({ req }) => { const t = tokenFrom(req, new URL('http://x')); if (t) dropSession(db, t); }
   });
 
   router.add({
-    method: 'GET', path: '/me', group: 'Вход', summary: 'Текущий пользователь.', auth: 'user',
+    method: 'GET', path: '/me', group: 'Account', summary: 'Current user.', auth: 'user',
     handler: ({ user }) => me(user!.id)
   });
 
   router.add({
-    method: 'PATCH', path: '/me', group: 'Вход', summary: 'Изменить своё имя (ученик или модератор). Эксперт меняет имя через запрос на модерацию.', auth: ['student', 'moderator'],
+    method: 'PATCH', path: '/me', group: 'Account', summary: 'Change own name (student or moderator). Experts change their name via a moderation request.', auth: ['student', 'moderator'],
     body: '{ name }',
     handler: ({ user, body }) => {
       const b = parse<{ name: string }>(body, { name: str({ min: 2, max: 60 }) });

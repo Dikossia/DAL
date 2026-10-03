@@ -1,6 +1,6 @@
 import { HttpError } from './http.ts';
 
-// Небольшой валидатор без зависимостей. Ошибки собираются по полям и отдаются одним ответом 422.
+// Small dependency-free validator. Errors are collected per field and returned in a single 422 response.
 type Check = (value: unknown, name: string) => { ok: true; value: unknown } | { ok: false; error: string };
 interface Opt { optional?: boolean; nullable?: boolean }
 

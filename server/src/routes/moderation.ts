@@ -8,12 +8,12 @@ import { productCard, productChecklist } from '../products.ts';
 
 const M: ['moderator'] = ['moderator'];
 
-// Модерация: курсы, жалобы на отзывы, изменения профиля, подтверждение экспертов, итоги прогнозов.
+// Moderation: courses, review reports, profile changes, expert verification, forecast outcomes.
 export function registerModeration(app: App) {
   const { db, router } = app;
 
   router.add({
-    method: 'GET', path: '/moderation/queue', group: 'Модерация', summary: 'Всё, что ждёт решения модератора.', auth: M,
+    method: 'GET', path: '/moderation/queue', group: 'Moderation', summary: 'Everything awaiting a moderator decision.', auth: M,
     handler: () => ({
       courses: db.all(`SELECT * FROM courses WHERE status = 'review' ORDER BY submitted_at`).map(c => ({ ...courseCard(db, c), submittedAt: c.submitted_at, checklist: checklist(c, lessonsOf(db, c.id)) })),
       products: db.all(`SELECT * FROM products WHERE status = 'review' ORDER BY submitted_at`).map(p => ({ ...productCard(db, p), submittedAt: p.submitted_at, checklist: productChecklist(db, p) })),
@@ -43,7 +43,7 @@ export function registerModeration(app: App) {
     return c;
   };
   router.add({
-    method: 'POST', path: '/moderation/courses/:id/approve', group: 'Модерация', summary: 'Одобрить курс: он появится в каталоге.', auth: M,
+    method: 'POST', path: '/moderation/courses/:id/approve', group: 'Moderation', summary: 'Approve a course: it appears in the catalog.', auth: M,
     handler: ({ params }) => {
       const c = reviewCourse(params.id);
       db.run(`UPDATE courses SET status = 'published', published_at = COALESCE(published_at, ?), moderation_note = NULL, updated_at = ? WHERE id = ?`, nowIso(), nowIso(), c.id);
@@ -51,8 +51,8 @@ export function registerModeration(app: App) {
     }
   });
   router.add({
-    method: 'POST', path: '/moderation/courses/:id/reject', group: 'Модерация', summary: 'Вернуть курс эксперту с комментарием.', auth: M,
-    body: '{ note: что исправить }',
+    method: 'POST', path: '/moderation/courses/:id/reject', group: 'Moderation', summary: 'Return a course to the expert with a comment.', auth: M,
+    body: '{ note: what to fix }',
     handler: ({ params, body }) => {
       const c = reviewCourse(params.id);
       const b = parse<{ note: string }>(body, { note: str({ min: 5, max: 1000 }) });
@@ -62,7 +62,7 @@ export function registerModeration(app: App) {
   });
 
   router.add({
-    method: 'POST', path: '/moderation/reports/:id/resolve', group: 'Модерация', summary: 'Решение по жалобе на отзыв: оставить отзыв или скрыть его.', auth: M,
+    method: 'POST', path: '/moderation/reports/:id/resolve', group: 'Moderation', summary: 'Resolve a review report: keep the review or hide it.', auth: M,
     body: '{ action: "keep" | "remove" }',
     handler: ({ user, params, body }) => {
       let rr = db.get(`SELECT * FROM review_reports WHERE id = ?`, params.id), reports = 'review_reports', reviews = 'reviews';
@@ -79,7 +79,7 @@ export function registerModeration(app: App) {
   });
 
   router.add({
-    method: 'POST', path: '/moderation/profile-requests/:id/:decision', group: 'Модерация', summary: 'Одобрить (approve) или отклонить (reject) изменение имени или стажа эксперта.', auth: M,
+    method: 'POST', path: '/moderation/profile-requests/:id/:decision', group: 'Moderation', summary: 'Approve or reject a change to an expert\'s name or years of experience.', auth: M,
     handler: ({ user, params }) => {
       if (!['approve', 'reject'].includes(params.decision)) throw notFound();
       const pr = db.get('SELECT * FROM profile_requests WHERE id = ?', params.id);
@@ -96,7 +96,7 @@ export function registerModeration(app: App) {
   });
 
   router.add({
-    method: 'POST', path: '/moderation/experts/:id/verify', group: 'Модерация', summary: 'Подтвердить личность и счёт эксперта: после этого он может продавать курсы и публиковать прогнозы.', auth: M,
+    method: 'POST', path: '/moderation/experts/:id/verify', group: 'Moderation', summary: 'Verify an expert\'s identity and payout account: after that they can sell courses and publish forecasts.', auth: M,
     handler: ({ params }) => {
       const p = db.get('SELECT * FROM expert_profiles WHERE user_id = ?', params.id);
       if (!p) throw notFound('Эксперт не найден');
@@ -107,8 +107,8 @@ export function registerModeration(app: App) {
   });
 
   router.add({
-    method: 'POST', path: '/moderation/forecasts/:id/resolve', group: 'Модерация',
-    summary: 'Записать цену закрытия на дату срока; итог определяется автоматически. Пока источник котировок не подключён, цену вносит модератор.', auth: M,
+    method: 'POST', path: '/moderation/forecasts/:id/resolve', group: 'Moderation',
+    summary: 'Record the closing price on the deadline date; the outcome is determined automatically. Until a quote feed is connected, the moderator enters the price.', auth: M,
     body: '{ closePrice }',
     handler: ({ user, params, body }) => {
       const f = db.get('SELECT * FROM forecasts WHERE id = ?', params.id);

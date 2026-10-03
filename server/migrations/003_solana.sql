@@ -1,5 +1,5 @@
--- Фиксация прогнозов в блокчейне Solana (devnet): подпись транзакции с записью (memo) условий прогноза.
--- Сама запись в блокчейне неизменяема; здесь хранится ссылка на неё. Запись делается один раз и не меняется.
+-- Anchoring forecasts on the Solana blockchain (devnet): signature of the transaction carrying a memo with the forecast terms.
+-- The on-chain record itself is immutable; this table stores a reference to it. It is written once and never changes.
 CREATE TABLE forecast_anchors (
   forecast_id TEXT PRIMARY KEY REFERENCES forecasts(id) ON DELETE RESTRICT,
   cluster     TEXT NOT NULL CHECK (cluster IN ('devnet', 'mainnet-beta')),

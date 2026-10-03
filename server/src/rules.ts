@@ -1,17 +1,17 @@
-// Правила платформы. Совпадают со страницей «Права эксперта» в Dal Studio.
+// Platform rules. They match the "Expert rights" page in Dal Studio.
 export const RULES = {
-  maxFreeLessons: 2,             // бесплатных уроков в курсе для предпросмотра
-  maxOpenForecasts: 5,           // открытых прогнозов у эксперта одновременно
-  maxVideoBytes: 4 * 1024 ** 3,  // 4 ГБ на видео урока
-  maxCoverBytes: 5 * 1024 ** 2,  // 5 МБ на обложку
-  commission: 0.2,               // комиссия платформы с продажи
-  refundDays: 14,                // возврат возможен столько дней после покупки
-  refundMaxProgress: 0.2,        // ...и если пройдено меньше этой доли курса
-  forecastMaxDays: 365,          // срок прогноза: от завтра до года
-  rationaleMin: 120,             // минимальная длина обоснования прогноза
-  sessionDays: 30,               // срок жизни входа
-  payoutDays: [5, 20],           // числа месяца, когда идут выплаты
-  loginAttempts: 10,             // неудачных попыток входа за окно
+  maxFreeLessons: 2,             // free preview lessons per course
+  maxOpenForecasts: 5,           // open forecasts per expert at a time
+  maxVideoBytes: 4 * 1024 ** 3,  // 4 GB per lesson video
+  maxCoverBytes: 5 * 1024 ** 2,  // 5 MB per cover
+  commission: 0.2,               // platform commission per sale
+  refundDays: 14,                // refunds allowed this many days after purchase
+  refundMaxProgress: 0.2,        // ...and only if less than this share of the course is completed
+  forecastMaxDays: 365,          // forecast horizon: from tomorrow up to one year
+  rationaleMin: 120,             // minimum forecast rationale length
+  sessionDays: 30,               // session lifetime
+  payoutDays: [5, 20],           // days of the month when payouts happen
+  loginAttempts: 10,             // failed sign-in attempts per window
   loginWindowMin: 15
 } as const;
 
@@ -25,7 +25,7 @@ export const COVER_LIBRARY = ['foundations', 'analytics', 'workshop'];
 export const VIDEO_TYPES: Record<string, string> = { 'video/mp4': '.mp4', 'video/quicktime': '.mov', 'video/webm': '.webm', 'video/x-m4v': '.m4v' };
 export const IMAGE_TYPES: Record<string, string> = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' };
 
-// Продукты режимов «Работа с экспертом», «Сообщество», «Идеи и аналитика».
+// Products for the "Work with an expert", "Community" and "Ideas & analysis" modes.
 export const MODES = ['courses', 'experts', 'community', 'ideas'] as const;
 export const PRODUCT_MODES = ['experts', 'community', 'ideas'] as const;
 export const PRODUCT_TYPES: Record<string, { mode: string; name: string; kind: 'sessions' | 'subscription' | 'material' }> = {
@@ -39,11 +39,11 @@ export const PRODUCT_TYPES: Record<string, { mode: string; name: string; kind: '
 };
 export const MODE_NAMES: Record<string, string> = { courses: 'Курсы', experts: 'Работа с экспертом', community: 'Сообщество', ideas: 'Идеи и аналитика' };
 export const PRODUCT_RULES = {
-  cancelHours: 24,          // отменить запись на встречу можно не позже чем за сутки
-  slotMaxDays: 180,         // слоты расписания — не дальше чем на полгода вперёд
-  minContent: 300,          // минимальная длина материала идеи или обзора
-  previewChars: 400,        // сколько текста платного материала видно до покупки
+  cancelHours: 24,          // a session booking can be cancelled no later than 24 hours before
+  slotMaxDays: 180,         // schedule slots at most six months ahead
+  minContent: 300,          // minimum length of an idea or review material
+  previewChars: 400,        // how much of a paid material's text is visible before purchase
   messageMax: 1000,
-  sessionRefundDays: 14     // встречи: возврат до 14 дней, если ни одна встреча не назначена
+  sessionRefundDays: 14     // sessions: refund within 14 days if no session has been scheduled
 };
 export const SOCIALS = ['telegram', 'instagram', 'youtube', 'linkedin', 'website'] as const;

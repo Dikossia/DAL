@@ -37,8 +37,8 @@ export interface RouteDef {
   group: string;
   summary: string;
   auth?: 'user' | Role[];
-  body?: string;     // описание тела запроса для /docs
-  raw?: boolean;     // тело не разбирается как JSON (загрузка файлов)
+  body?: string;     // request body description for /docs
+  raw?: boolean;     // body is not parsed as JSON (file uploads)
   handler: (ctx: Ctx) => unknown | Promise<unknown>;
 }
 interface Compiled extends RouteDef { re: RegExp; keys: string[] }
@@ -104,7 +104,7 @@ async function readJson(req: http.IncomingMessage, limit = 1024 * 1024): Promise
   catch { throw new HttpError(400, 'bad_json', 'Некорректный JSON'); }
 }
 
-// Принимает тело запроса как файл: потоково, с ограничением размера.
+// Receives the request body as a file: streamed, with a size limit.
 export async function receiveFile(req: http.IncomingMessage, dest: string, maxBytes: number): Promise<number> {
   const declared = Number(req.headers['content-length'] || 0);
   if (declared > maxBytes) throw new HttpError(413, 'too_large', `Файл больше допустимого размера (${Math.round(maxBytes / 1024 ** 2)} МБ)`);
@@ -132,7 +132,7 @@ const MIME: Record<string, string> = {
   '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm', '.m4v': 'video/x-m4v'
 };
 
-// Отдаёт файл с поддержкой Range: видео можно перематывать.
+// Serves a file with Range support so video can be seeked.
 export function sendFile(req: http.IncomingMessage, res: http.ServerResponse, file: string, type?: string) {
   let stat: fs.Stats;
   try { stat = fs.statSync(file); } catch { throw notFound('Файл не найден'); }
@@ -158,14 +158,14 @@ export function sendFile(req: http.IncomingMessage, res: http.ServerResponse, fi
   fs.createReadStream(file).pipe(res);
 }
 
-// Сайты-прототипы (Dal.html, Studio.html и исходники) отдаются из папки проекта.
+// Prototype sites (Dal.html, Studio.html and sources) are served from the project folder.
 function serveStatic(req: http.IncomingMessage, res: http.ServerResponse, siteDir: string, pathname: string, blocked: string[]): boolean {
   const rel = pathname === '/' ? '/index.html' : pathname;
   let decoded: string;
   try { decoded = decodeURIComponent(rel); } catch { return false; }
   if (decoded.split('/').some(p => p.startsWith('.'))) return false;
   const file = path.resolve(siteDir, '.' + decoded);
-  // В Windows регистр в путях не важен: сравниваем без учёта регистра, иначе /Server/... обошёл бы запрет.
+  // Paths are case-insensitive on Windows: compare case-insensitively, otherwise /Server/... would bypass the block.
   const key = (p: string) => process.platform === 'win32' ? p.toLowerCase() : p;
   if (!key(file).startsWith(key(path.resolve(siteDir) + path.sep))) return false;
   if (blocked.some(d => key(file) === key(d) || key(file).startsWith(key(d + path.sep)))) return false;
@@ -189,7 +189,7 @@ export function createHttpServer(o: ServerOptions): http.Server {
   return http.createServer(async (req, res) => {
     const started = Date.now();
     const url = new URL(req.url || '/', 'http://localhost');
-    res.on('finish', () => { if (o.log) console.log(`${req.method} ${url.pathname} ${res.statusCode} ${Date.now() - started}мс`); });
+    res.on('finish', () => { if (o.log) console.log(`${req.method} ${url.pathname} ${res.statusCode} ${Date.now() - started}ms`); });
     if (req.method === 'OPTIONS') { res.writeHead(204, CORS); res.end(); return; }
     try {
       const m = o.router.match(req.method || 'GET', url.pathname);

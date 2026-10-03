@@ -30,13 +30,13 @@ export const sessionsBooked = (db: DB, purchaseId: string): number =>
   db.get('SELECT COUNT(*) AS n FROM product_slots WHERE purchase_id = ?', purchaseId)!.n as number;
 export const subscriptionLive = (pu: Row | undefined) => !!pu && (!pu.expires_at || pu.expires_at > nowIso());
 
-// Доступ к содержимому: автор, модератор, купивший (подписка — пока не истекла); бесплатный материал — всем.
+// Content access: author, moderator, buyer (subscriptions only until expiry); free material is open to everyone.
 export function hasAccess(db: DB, user: User | null, p: Row): boolean {
   if (user?.role === 'moderator' || (user && p.expert_id === user.id)) return true;
   if (kindOf(p) === 'material' && p.price === 0 && p.status === 'published') return true;
   if (!user) return false;
   const pu = activePurchase(db, user.id, p.id);
-  if (!pu) return false;  // купившие сохраняют доступ, даже если продукт скрыт из каталога
+  if (!pu) return false;  // buyers keep access even if the product is hidden from the catalog
   return kindOf(p) === 'subscription' ? subscriptionLive(pu) : !!pu;
 }
 

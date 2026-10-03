@@ -22,8 +22,8 @@ export function registerStudioForecasts(app: App) {
   const { db, router } = app;
 
   router.add({
-    method: 'POST', path: '/studio/forecasts/:id/anchor', group: 'Студия: прогнозы',
-    summary: 'Сохранить ссылку на транзакцию Solana, в которой зафиксированы условия прогноза (memo). Делается один раз.', auth: E,
+    method: 'POST', path: '/studio/forecasts/:id/anchor', group: 'Studio: forecasts',
+    summary: 'Save a link to the Solana transaction anchoring the forecast terms (memo). Done once.', auth: E,
     body: '{ signature, wallet, cluster: "devnet" }',
     handler: ({ user, params, body }) => {
       const f = db.get('SELECT * FROM forecasts WHERE id = ? AND expert_id = ?', params.id, user!.id);
@@ -40,7 +40,7 @@ export function registerStudioForecasts(app: App) {
   });
 
   router.add({
-    method: 'GET', path: '/studio/forecasts', group: 'Студия: прогнозы', summary: 'Мои прогнозы и статистика.', auth: E,
+    method: 'GET', path: '/studio/forecasts', group: 'Studio: forecasts', summary: 'My forecasts and stats.', auth: E,
     handler: ({ user }) => {
       const rows = db.all('SELECT * FROM forecasts WHERE expert_id = ? ORDER BY published_at DESC', user!.id);
       const done = rows.filter(r => r.status !== 'active'), ok = done.filter(r => r.status === 'success').length;
@@ -52,9 +52,9 @@ export function registerStudioForecasts(app: App) {
   });
 
   router.add({
-    method: 'POST', path: '/studio/forecasts', group: 'Студия: прогнозы',
-    summary: `Опубликовать прогноз. После публикации его нельзя изменить или удалить. Лимиты: ${RULES.maxOpenForecasts} открытых, по одному тикеру — один открытый.`,
-    auth: E, body: '{ ticker, name, direction: "up" | "down", startPrice, targetPrice, deadline: "ГГГГ-ММ-ДД" (от завтра до года), rationale (от 120 символов), acknowledged: true }',
+    method: 'POST', path: '/studio/forecasts', group: 'Studio: forecasts',
+    summary: `Publish a forecast. Once published it cannot be changed or deleted. Limits: ${RULES.maxOpenForecasts} open, one open per ticker.`,
+    auth: E, body: '{ ticker, name, direction: "up" | "down", startPrice, targetPrice, deadline: "YYYY-MM-DD" (tomorrow to one year), rationale (120+ chars), acknowledged: true }',
     handler: ctx => {
       const user = ctx.user!;
       assertVerifiedExpert(db, user, 'Публиковать прогнозы');
@@ -88,8 +88,8 @@ export function registerStudioForecasts(app: App) {
   });
 
   router.add({
-    method: 'POST', path: '/studio/forecasts/:id/comments', group: 'Студия: прогнозы', summary: 'Добавить комментарий к своему открытому прогнозу. Условия прогноза не меняются.', auth: E,
-    body: '{ text: 10–600 символов }',
+    method: 'POST', path: '/studio/forecasts/:id/comments', group: 'Studio: forecasts', summary: 'Add a comment to your own open forecast. The forecast terms do not change.', auth: E,
+    body: '{ text: 10–600 chars }',
     handler: ({ user, params, body }) => {
       const f = db.get('SELECT * FROM forecasts WHERE id = ?', params.id);
       if (!f || f.expert_id !== user!.id) throw notFound('Прогноз не найден');
@@ -100,9 +100,9 @@ export function registerStudioForecasts(app: App) {
     }
   });
 
-  // Явно запрещённые действия: отвечают понятной ошибкой, а не «нет такого адреса».
+  // Explicitly forbidden actions: respond with a clear error instead of "no such address".
   for (const method of ['PATCH', 'DELETE'] as const) router.add({
-    method, path: '/studio/forecasts/:id', group: 'Студия: прогнозы', summary: method === 'PATCH' ? 'Изменить прогноз нельзя — всегда 409.' : 'Удалить прогноз нельзя — всегда 409.', auth: E,
+    method, path: '/studio/forecasts/:id', group: 'Studio: forecasts', summary: method === 'PATCH' ? 'Forecasts cannot be changed: always 409.' : 'Forecasts cannot be deleted: always 409.', auth: E,
     handler: () => { throw conflict('forecast_immutable', 'Опубликованный прогноз нельзя изменить или удалить. Можно добавить комментарий.'); }
   });
 }

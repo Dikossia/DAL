@@ -2,7 +2,7 @@
   "name": "dal-server",
   "version": "0.1.0",
   "private": true,
-  "description": "Бэкенд Dal: вход и роли, каталог, обучение, кабинет эксперта, видео, прогнозы, модерация. Без внешних зависимостей.",
+  "description": "Dal backend: sign-in and roles, catalog, learning, expert dashboard, video, forecasts, moderation. No external dependencies.",
   "type": "module",
   "engines": { "node": ">=22.18" },
   "scripts": {
