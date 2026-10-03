@@ -52,12 +52,14 @@ export function registerStudioOther(app: App) {
   };
 
   const monthly = (userId: string, months = 6) => {
-    const now = new Date(), out: { month: string; label: string; gross: number; commission: number; net: number; sales: number }[] = [];
+    const now = new Date(), out: { month: string; label: string; gross: number; commission: number; networkFees: number; net: number; sales: number }[] = [];
     for (let i = months - 1; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       const s = db.get(`SELECT COUNT(*) AS n, COALESCE(SUM(price_paid), 0) AS gross, COALESCE(SUM(commission), 0) AS fee FROM (${SALES}) WHERE substr(created_at, 1, 7) = ?`, userId, key)!;
-      out.push({ month: key, label: MONTHS[d.getMonth()], gross: s.gross, commission: s.fee, net: s.gross - s.fee, sales: s.n });
+      // Network fees for forecasts recorded on Solana are deducted from the expert's income.
+      const nf = db.get<{ s: number }>(`SELECT COALESCE(SUM(network_fee), 0) AS s FROM forecasts WHERE expert_id = ? AND substr(published_at, 1, 7) = ?`, userId, key)!.s;
+      out.push({ month: key, label: MONTHS[d.getMonth()], gross: s.gross, commission: s.fee, networkFees: nf, net: s.gross - s.fee - nf, sales: s.n });
     }
     return out;
   };
@@ -201,6 +203,7 @@ export function registerStudioOther(app: App) {
         months: monthly(id, 6),
         byCourse: byItem, byItem, recent,
         refunds: { count: refunds.n, amount: refunds.sum },
+        networkFees: { perForecast: RULES.forecastNetworkFee, ...db.get(`SELECT COUNT(*) AS forecasts, COALESCE(SUM(network_fee), 0) AS amount FROM forecasts WHERE expert_id = ? AND network_fee > 0`, id) },
         nextPayout: nextPayoutDate(RULES.payoutDays),
         payoutsNote: 'Выплаты подключаются после интеграции платёжной системы. Сейчас суммы расчётные.'
       };

@@ -1,0 +1,9 @@
+{
+  "name": "DAL Certificate",
+  "symbol": "DALC",
+  "description": "Course completion certificate issued by Dal, an investment education marketplace in Kazakhstan. Check it at https://dal-kappa.vercel.app/verify.html (the link with the certificate number is in the certificate PDF).",
+  "image": "https://dal-kappa.vercel.app/assets/certificate.png",
+  "external_url": "https://dal-kappa.vercel.app",
+  "attributes": [{ "trait_type": "Issuer", "value": "Dal" }, { "trait_type": "Type", "value": "Course completion" }],
+  "properties": { "category": "image", "files": [{ "uri": "https://dal-kappa.vercel.app/assets/certificate.png", "type": "image/png" }] }
+}

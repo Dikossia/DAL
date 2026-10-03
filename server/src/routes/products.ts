@@ -10,6 +10,7 @@ import {
   getProduct, ownProduct, assertProductEditable, activePurchase, sessionsBooked, subscriptionLive, hasAccess, purchaseState,
   productCard, productChecklist, futureFreeSlots, kindOf, isLiveProduct, isUrl
 } from '../products.ts';
+import { placeCardOrder } from '../orders.ts';
 
 const E: ['expert'] = ['expert'];
 const S: ['student'] = ['student'];
@@ -70,43 +71,10 @@ export function registerProducts(app: App) {
   // ---------- Student ----------
   router.add({
     method: 'POST', path: '/products/:id/buy', group: 'Student: products',
-    summary: 'Buy a product (payment not wired up yet). For subscriptions, buying again extends the period. The price is fixed at purchase time.', auth: S,
+    summary: 'Buy a product by card (payment is simulated). For subscriptions, buying again extends the period. The price is fixed at purchase time. Same as POST /orders with method "card".', auth: S,
     handler: ({ user, params }) => {
-      const p = getProduct(db, params.id);
-      if (p.status !== 'published') throw notFound('Продукт не найден');
-      const kind = kindOf(p), now = new Date(), commission = Math.round(p.price * RULES.commission);
-      return db.tx(() => {
-        const pu = db.get('SELECT * FROM product_purchases WHERE user_id = ? AND product_id = ?', user!.id, p.id);
-        if (kind === 'subscription') {
-          const base = pu && pu.status === 'active' && pu.expires_at > now.toISOString() ? new Date(pu.expires_at) : now;
-          const expires = new Date(base.getTime() + p.period_days * 864e5).toISOString();
-          if (pu?.status === 'active') {
-            // The payment is recorded as a separate row so income from the first purchase is not lost.
-            // While the subscription is active the period is extended; after it ends, a new period starts today.
-            const live = pu.expires_at > now.toISOString();
-            db.run('UPDATE product_purchases SET expires_at = ? WHERE id = ?', expires, pu.id);
-            db.run('INSERT INTO product_renewals (id, purchase_id, price_paid, commission, created_at) VALUES (?, ?, ?, ?, ?)', newId(), pu.id, p.price, commission, now.toISOString());
-            return { productId: p.id, renewed: live, expiresAt: expires };
-          }
-          if (pu) db.run(`UPDATE product_purchases SET status = 'active', price_paid = ?, commission = ?, expires_at = ?, created_at = ?, refunded_at = NULL WHERE id = ?`, p.price, commission, expires, now.toISOString(), pu.id);
-          else db.run('INSERT INTO product_purchases (id, user_id, product_id, price_paid, commission, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', newId(), user!.id, p.id, p.price, commission, expires, now.toISOString());
-          return { productId: p.id, renewed: false, expiresAt: expires };
-        }
-        if (pu?.status === 'active') {
-          if (kind === 'sessions' && sessionsBooked(db, pu.id) >= pu.sessions_total) {
-            // Session package used up: buying a new package adds sessions.
-            const add = p.type === 'consultation' ? 1 : p.sessions;
-            db.run('UPDATE product_purchases SET sessions_total = sessions_total + ? WHERE id = ?', add, pu.id);
-            db.run('INSERT INTO product_renewals (id, purchase_id, price_paid, commission, created_at) VALUES (?, ?, ?, ?, ?)', newId(), pu.id, p.price, commission, now.toISOString());
-            return { productId: p.id, renewed: true };
-          }
-          throw conflict('already_bought', kind === 'sessions' ? 'У вас уже есть неиспользованные встречи по этому продукту' : 'Этот материал уже у вас');
-        }
-        const sessions = kind === 'sessions' ? (p.type === 'consultation' ? 1 : p.sessions) : null;
-        if (pu) db.run(`UPDATE product_purchases SET status = 'active', price_paid = ?, commission = ?, sessions_total = ?, created_at = ?, refunded_at = NULL WHERE id = ?`, p.price, commission, sessions, now.toISOString(), pu.id);
-        else db.run('INSERT INTO product_purchases (id, user_id, product_id, price_paid, commission, sessions_total, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', newId(), user!.id, p.id, p.price, commission, sessions, now.toISOString());
-        return { productId: p.id, renewed: false };
-      });
+      const o = placeCardOrder(app, user!, 'product', params.id);
+      return { ...o.result, networkFee: o.networkFee, total: o.total, orderId: o.id };
     }
   });
 
@@ -120,7 +88,7 @@ export function registerProducts(app: App) {
       if ((Date.now() - new Date(pu.created_at).getTime()) / 864e5 > PRODUCT_RULES.sessionRefundDays) throw conflict('refund_expired', `Возврат возможен в течение ${PRODUCT_RULES.sessionRefundDays} дней после покупки`);
       if (sessionsBooked(db, pu.id)) throw conflict('refund_used', 'Возврат невозможен: встреча уже назначена. Отмените запись, если до встречи больше суток.');
       db.run(`UPDATE product_purchases SET status = 'refunded', refunded_at = ? WHERE id = ?`, nowIso(), pu.id);
-      return { productId: p.id, refunded: pu.price_paid };
+      return { productId: p.id, refunded: pu.price_paid + (pu.network_fee || 0) };
     }
   });
 

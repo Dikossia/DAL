@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#fafbf9">
+  <meta name="description" content="Check a Dal course certificate: read its NFT and record directly from the Solana blockchain. No sign-in and no wallet needed.">
+  <title>Dal · Проверка сертификата</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="assets/lucide.min.js" defer></script>
+  <script src="web/i18n-en.js" defer></script>
+  <script src="web/i18n.js" defer></script>
+  <script src="web/dal-local.js" defer></script>
+  <script src="api.js" defer></script>
+  <script src="web/solana.js" defer></script>
+  <script src="web/certificate.js" defer></script>
+  <script src="verify.js" defer></script>
+</head>
+<body class="auth-page verify-page">
+  <main class="verify-wrap" id="main">
+    <a class="brand" href="/" aria-label="Dal — на главную">Dal<span class="brand-dot"></span></a>
+    <h1>Проверка сертификата</h1>
+    <p class="subtitle">Страница читает сертификат прямо из блокчейна Solana. Вход и криптокошелёк не нужны.</p>
+    <div id="verifyBody"><div class="loading">Проверяем…</div></div>
+  </main>
+</body>
+</html>

@@ -37,6 +37,7 @@
         <label class="form-label">Пароль<span class="password-wrap"><input type="password" name="password" id="f-password" autocomplete="current-password" required maxlength="200"><button type="button" class="icon-button" data-toggle-password title="Показать пароль" aria-label="Показать пароль">${icon('eye')}</button></span><span class="field-error" id="err-password" hidden></span></label>
         <div class="form-error" id="formError" role="alert" hidden></div>
         <button class="btn wide" type="submit">${icon('log-in')}Войти</button>
+        <button type="button" class="text-link forgot-link" data-tab="recover">${icon('life-buoy')}Забыли пароль?</button>
       </form>
       <details class="demo-accounts"><summary>${icon('key-round')}Демо-аккаунты</summary><p>Пароль у всех: <code>dal-demo-2026</code></p>${DEMO.map(([e, r, n]) => `<button type="button" class="demo-account" data-fill="${e}"><span><strong>${r}</strong>${n}</span><code>${e}</code></button>`).join('')}</details>`;
   }
@@ -57,6 +58,15 @@
       </form>`;
   }
 
+  // Account recovery: a one-time code by email. The built-in wallet and certificates stay with the account.
+  let recover = { email: '', demoCode: '' };
+  function recoverForm() {
+    if (!recover.email) return `<h2 id="authTitle">Восстановление доступа</h2><p class="auth-text">Укажите почту аккаунта — пришлём одноразовый код. Кошелёк DAL, сертификаты и записи в блокчейне останутся с вашим аккаунтом.</p>
+      <form id="authForm" data-step="email" novalidate>${field('email', 'Электронная почта', 'email', 'autocomplete="email" required maxlength="120" placeholder="name@example.com"')}<div class="form-error" id="formError" role="alert" hidden></div><button class="btn wide" type="submit">${icon('mail')}Получить код</button><button type="button" class="text-link forgot-link" data-tab="login">${icon('arrow-left')}Вернуться ко входу</button></form>`;
+    return `<h2 id="authTitle">Новый пароль</h2><p class="auth-text">Код отправлен на ${esc(recover.email)}. Он действует 30 минут.</p>${recover.demoCode ? `<p class="notice">${icon('info')}В демо почта не подключена, поэтому код показан здесь: <b>${esc(recover.demoCode)}</b></p>` : ''}
+      <form id="authForm" data-step="confirm" novalidate>${field('code', 'Код из письма', 'text', 'inputmode="numeric" autocomplete="one-time-code" required maxlength="6" pattern="\\d{6}"')}<label class="form-label">Новый пароль<span class="password-wrap"><input type="password" name="password" id="f-password" autocomplete="new-password" required minlength="8" maxlength="200"><button type="button" class="icon-button" data-toggle-password title="Показать пароль" aria-label="Показать пароль">${icon('eye')}</button></span><span class="field-hint">Не короче 8 символов</span><span class="field-error" id="err-password" hidden></span></label><div class="form-error" id="formError" role="alert" hidden></div><button class="btn wide" type="submit">${icon('check')}Сохранить пароль и войти</button><button type="button" class="text-link forgot-link" data-recover-again>${icon('rotate-ccw')}Отправить код ещё раз</button></form>`;
+  }
+
   function signedIn(user) {
     return `<h2 id="authTitle">Вы уже вошли</h2>
       <div class="signed-in"><span class="user-avatar">${esc(user.name.split(' ').map(s => s[0]).slice(0, 2).join(''))}</span><span><strong>${esc(user.name)}</strong><small>${esc(user.email)} · ${ROLE[user.role]}</small></span></div>
@@ -65,7 +75,7 @@
   }
 
   function render(html) { $('#authBody').innerHTML = html; icons(); }
-  function show() { render(tab === 'login' ? loginForm() : registerForm()); $('#authForm input:not([type=radio])')?.focus(); }
+  function show() { render(tab === 'login' ? loginForm() : tab === 'recover' ? recoverForm() : registerForm()); $('#authForm input:not([type=radio])')?.focus(); }
 
   function clearErrors() {
     document.querySelectorAll('.field-error').forEach(e => { e.hidden = true; e.textContent = ''; });
@@ -87,7 +97,8 @@
 
   document.addEventListener('click', async e => {
     const t = e.target.closest('[data-tab]');
-    if (t) { tab = t.dataset.tab; show(); return; }
+    if (t) { tab = t.dataset.tab; if (tab === 'recover') recover = { email: '', demoCode: '' }; show(); return; }
+    if (e.target.closest('[data-recover-again]')) { recover = { email: '', demoCode: '' }; show(); return; }
     const fill = e.target.closest('[data-fill]');
     if (fill) { $('#f-email').value = fill.dataset.fill; $('#f-password').value = 'dal-demo-2026'; $('#authForm button[type=submit]').focus(); return; }
     const eye = e.target.closest('[data-toggle-password]');
@@ -110,6 +121,21 @@
     if (busy) return;
     clearErrors();
     const fd = new FormData(e.target), btn = $('#authForm button[type=submit]');
+    if (tab === 'recover') {
+      busy = true; btn.disabled = true;
+      try {
+        if (e.target.dataset.step === 'email') {
+          const email = String(fd.get('email') || '').trim();
+          const r = await api.post('/auth/recover', { email });
+          recover = { email, demoCode: r.demoCode || '' };
+        } else {
+          const res = await api.post('/auth/recover/confirm', { email: recover.email, code: String(fd.get('code') || '').trim(), password: String(fd.get('password') || '') });
+          api.setToken(res.token); location.href = next(res.user.role); return;
+        }
+        busy = false; show();
+      } catch (err) { showError(err); btn.disabled = false; busy = false; }
+      return;
+    }
     const body = tab === 'login'
       ? { email: String(fd.get('email') || '').trim(), password: String(fd.get('password') || '') }
       : { name: String(fd.get('name') || '').trim(), email: String(fd.get('email') || '').trim(), password: String(fd.get('password') || ''), role: fd.get('role') };

@@ -2,6 +2,8 @@ import type { App } from '../app.ts';
 import { HttpError, notFound, forbidden, conflict, sendFile } from '../http.ts';
 import { parse, str, num, oneOf } from '../validate.ts';
 import { reviewMemo, reviewAnchor } from '../anchor.ts';
+import { placeCardOrder } from '../orders.ts';
+import { issueCertificateIfCompleted } from '../certificates.ts';
 import { RULES } from '../rules.ts';
 import { newId, nowIso, daysBetween } from '../util.ts';
 import { getCourse, courseCard, structure, lessonContext, canWatch, hasActiveEnrollment, progressOf, videoFile, isLive } from '../courses.ts';
@@ -11,18 +13,10 @@ export function registerLearning(app: App) {
   const { db, router } = app;
 
   router.add({
-    method: 'POST', path: '/courses/:id/enroll', group: 'Student', summary: 'Get access to a course. Payment is not wired up yet: the price is recorded, no money is charged.', auth: ['student'],
+    method: 'POST', path: '/courses/:id/enroll', group: 'Student', summary: 'Get access to a course by card (payment is simulated: the price is recorded, no money is charged). Same as POST /orders with method "card".', auth: ['student'],
     handler: ({ user, params }) => {
-      const c = getCourse(db, params.id);
-      if (c.status !== 'published') throw notFound('Курс не найден');
-      return db.tx(() => {
-        const e = db.get('SELECT * FROM enrollments WHERE user_id = ? AND course_id = ?', user!.id, c.id);
-        if (e?.status === 'active') throw conflict('already_enrolled', 'У вас уже есть доступ к этому курсу');
-        const commission = Math.round(c.price * RULES.commission);
-        if (e) db.run(`UPDATE enrollments SET status = 'active', price_paid = ?, commission = ?, created_at = ?, refunded_at = NULL WHERE id = ?`, c.price, commission, nowIso(), e.id);
-        else db.run('INSERT INTO enrollments (id, user_id, course_id, price_paid, commission, created_at) VALUES (?, ?, ?, ?, ?, ?)', newId(), user!.id, c.id, c.price, commission, nowIso());
-        return { courseId: c.id, pricePaid: c.price, status: 'active' };
-      });
+      const o = placeCardOrder(app, user!, 'course', params.id);
+      return { courseId: params.id, pricePaid: o.price, networkFee: o.networkFee, total: o.total, orderId: o.id, status: 'active' };
     }
   });
 
@@ -35,7 +29,7 @@ export function registerLearning(app: App) {
       const p = progressOf(db, user!.id, params.id);
       if (p.total && p.done / p.total >= RULES.refundMaxProgress) throw conflict('refund_progress', `Возврат невозможен: пройдено ${p.percent}% курса`);
       db.run(`UPDATE enrollments SET status = 'refunded', refunded_at = ? WHERE id = ?`, nowIso(), e.id);
-      return { courseId: params.id, refunded: e.price_paid };
+      return { courseId: params.id, refunded: e.price_paid + (e.network_fee || 0) };
     }
   });
 
@@ -69,7 +63,9 @@ export function registerLearning(app: App) {
       const idx = order.indexOf(params.id);
       if (order.slice(0, idx).some(id => !done.has(id))) throw conflict('previous_lessons', 'Сначала завершите предыдущие уроки');
       db.run('INSERT OR IGNORE INTO lesson_progress (user_id, lesson_id, completed_at) VALUES (?, ?, ?)', user!.id, params.id, nowIso());
-      return progressOf(db, user!.id, course.id);
+      // Last lesson: the certificate is issued right away; its NFT is minted in the background.
+      const cert = issueCertificateIfCompleted(app, user!.id, course.id);
+      return { ...progressOf(db, user!.id, course.id), ...(cert ? { certificateId: cert.id } : {}) };
     }
   });
 

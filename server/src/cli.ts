@@ -11,7 +11,17 @@ const config = {
   host: process.env.HOST || '127.0.0.1',
   dbPath: path.resolve(SERVER_ROOT, process.env.DB_PATH || 'data/dal.db'),
   storageDir: path.resolve(SERVER_ROOT, process.env.STORAGE_DIR || 'storage'),
-  siteDir: path.resolve(SERVER_ROOT, process.env.SITE_DIR || '..')
+  siteDir: path.resolve(SERVER_ROOT, process.env.SITE_DIR || '..'),
+  chain: {
+    enabled: process.env.DAL_CHAIN !== 'off',
+    cluster: (process.env.DAL_SOLANA_CLUSTER === 'mainnet-beta' ? 'mainnet-beta' : 'devnet') as 'devnet' | 'mainnet-beta',
+    rpcUrl: process.env.DAL_SOLANA_RPC || undefined,
+    serviceSecret: process.env.DAL_SOLANA_SECRET || undefined,
+    walletKey: process.env.DAL_WALLET_KEY || undefined,
+    publicUrl: process.env.DAL_PUBLIC_URL || undefined,
+    usdcMint: process.env.DAL_USDC_MINT || undefined
+  },
+  exposeRecoveryCodes: process.env.DAL_SHOW_RECOVERY_CODES !== 'off'
 };
 
 function reset() {
@@ -30,7 +40,9 @@ function reset() {
 
 function start() {
   if (!fs.existsSync(config.dbPath)) { console.log('First run: creating the database.\n'); reset(); console.log(''); }
-  const { server } = createApp({ dbPath: config.dbPath, storageDir: config.storageDir, siteDir: config.siteDir, log: true });
+  const { server, app } = createApp({ dbPath: config.dbPath, storageDir: config.storageDir, siteDir: config.siteDir, log: true, chain: config.chain, exposeRecoveryCodes: config.exposeRecoveryCodes });
+  // Background worker: writes queued records to Solana. DAL keeps working if the network is unavailable.
+  if (app.chain.enabled) setInterval(() => { app.chain.tick().catch(e => console.error('Solana worker:', e?.message || e)); }, 5000).unref();
   server.on('error', (e: any) => {
     if (e.code === 'EADDRINUSE') console.error(`Port ${config.port} is in use. Stop the other running server or set PORT, e.g.: set PORT=4001`);
     else console.error(e);
@@ -42,6 +54,7 @@ function start() {
     console.log(`  API docs:          ${base}/docs`);
     console.log(`  Student site:      ${base}/`);
     console.log(`  Dal Studio:        ${base}/studio.html`);
+    console.log(`  Solana:            ${app.chain.enabled ? `${app.chain.cluster}, issuer ${app.chain.issuer}` : 'off (records stay queued)'}`);
     console.log('Stop: Ctrl+C\n');
   });
   const stop = () => { console.log('\nStopping server…'); server.close(() => process.exit(0)); setTimeout(() => process.exit(0), 2000).unref(); };

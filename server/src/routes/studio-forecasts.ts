@@ -4,7 +4,8 @@ import { parse, str, num, oneOf, date, bool } from '../validate.ts';
 import { RULES } from '../rules.ts';
 import { newId, nowIso, addDays } from '../util.ts';
 import { assertVerifiedExpert } from '../courses.ts';
-import { forecastMemo, forecastAnchor } from '../anchor.ts';
+import { forecastMemo, forecastAnchor, forecastChainFields, forecastRule, forecastResultMemo, forecastMemoV2 } from '../anchor.ts';
+import { memoIx } from '../chain/programs.ts';
 
 const E: ['expert'] = ['expert'];
 
@@ -15,11 +16,33 @@ export const forecastView = (db: App['db'], f: any) => ({
   publishedAt: f.published_at, resolvedAt: f.resolved_at,
   condition: `Цена закрытия ${f.ticker} на ${f.deadline} ${f.direction === 'up' ? 'не ниже' : 'не выше'} $${f.target_price}`,
   comments: db.all('SELECT id, text, created_at AS createdAt FROM forecast_comments WHERE forecast_id = ? ORDER BY created_at', f.id),
-  memo: forecastMemo(f), anchor: forecastAnchor(db, f.id)
+  ...forecastChainFields(db, f)
 });
 
 export function registerStudioForecasts(app: App) {
-  const { db, router } = app;
+  const { db, router, chain } = app;
+
+  chain.handlers.forecast = {
+    build(job) {
+      const f = db.get('SELECT * FROM forecasts WHERE id = ?', job.ref_id)!;
+      const expert = chain.keypair(f.expert_id);
+      return { instructions: [memoIx(job.memo!, [expert.publicKey])], signers: [expert] };
+    },
+    confirmed(job) {
+      const f = db.get('SELECT * FROM forecasts WHERE id = ?', job.ref_id)!;
+      if (!db.get('SELECT 1 FROM forecast_anchors WHERE forecast_id = ?', f.id))
+        db.run('INSERT INTO forecast_anchors (forecast_id, cluster, signature, wallet, memo, created_at) VALUES (?, ?, ?, ?, ?, ?)', f.id, chain.cluster, job.signature, chain.wallet(f.expert_id).address, job.memo, nowIso());
+    }
+  };
+  chain.handlers.forecast_result = {
+    build(job) {
+      const f = db.get('SELECT * FROM forecasts WHERE id = ?', job.ref_id)!;
+      const pub = chain.job('forecast', f.id);
+      if (pub && pub.status !== 'confirmed') return null; // the result is recorded after the terms
+      const memo = job.memo ?? forecastResultMemo(f, pub?.signature ?? db.get('SELECT signature FROM forecast_anchors WHERE forecast_id = ?', f.id)?.signature ?? null);
+      return { instructions: [memoIx(memo)], memo };
+    }
+  };
 
   router.add({
     method: 'POST', path: '/studio/forecasts/:id/anchor', group: 'Studio: forecasts',
@@ -53,7 +76,7 @@ export function registerStudioForecasts(app: App) {
 
   router.add({
     method: 'POST', path: '/studio/forecasts', group: 'Studio: forecasts',
-    summary: `Publish a forecast. Once published it cannot be changed or deleted. Limits: ${RULES.maxOpenForecasts} open, one open per ticker.`,
+    summary: `Publish a forecast. Once published it cannot be changed or deleted; DAL records the terms and the resolution rule on Solana automatically. Network fee ${RULES.forecastNetworkFee} ₸ is deducted from the expert's income. Limits: ${RULES.maxOpenForecasts} open, one open per ticker.`,
     auth: E, body: '{ ticker, name, direction: "up" | "down", startPrice, targetPrice, deadline: "YYYY-MM-DD" (tomorrow to one year), rationale (120+ chars), acknowledged: true }',
     handler: ctx => {
       const user = ctx.user!;
@@ -79,8 +102,12 @@ export function registerStudioForecasts(app: App) {
         const open = db.get(`SELECT COUNT(*) AS n FROM forecasts WHERE expert_id = ? AND status = 'active'`, user.id)!.n as number;
         if (open >= RULES.maxOpenForecasts) throw conflict('forecast_limit', `Открыто ${open} прогнозов из ${RULES.maxOpenForecasts}. Новый можно опубликовать, когда завершится один из открытых.`);
         if (db.get(`SELECT 1 FROM forecasts WHERE expert_id = ? AND ticker = ? AND status = 'active'`, user.id, ticker)) throw conflict('forecast_ticker_open', `По ${ticker} уже есть открытый прогноз. Дождитесь его итога.`);
-        db.run(`INSERT INTO forecasts (id, expert_id, ticker, name, direction, start_price, target_price, deadline, rationale, published_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          id, user.id, ticker, b.name, b.direction, b.startPrice, b.targetPrice, b.deadline, b.rationale, nowIso());
+        const rule = forecastRule({ ticker, deadline: b.deadline, direction: b.direction, target_price: b.targetPrice });
+        db.run(`INSERT INTO forecasts (id, expert_id, ticker, name, direction, start_price, target_price, deadline, rationale, published_at, rule, network_fee) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          id, user.id, ticker, b.name, b.direction, b.startPrice, b.targetPrice, b.deadline, b.rationale, nowIso(), rule, RULES.forecastNetworkFee);
+        // Recorded on Solana in the background, co-signed by the expert's built-in wallet (created on first use).
+        const wallet = app.chain.wallet(user.id);
+        app.chain.enqueue('forecast', id, forecastMemoV2(db.get('SELECT * FROM forecasts WHERE id = ?', id), wallet.address));
       });
       ctx.status = 201;
       return forecastView(db, db.get('SELECT * FROM forecasts WHERE id = ?', id));

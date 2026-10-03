@@ -43,7 +43,7 @@
 
   // ---------- Server data ----------
   let me = null, catalog = [], products = [], experts = [], forecasts = [];
-  let learning = { courses: [], inProgress: null }, mine = [], favs = new Set(), shownReviews = [], solWallet = '';
+  let learning = { courses: [], inProgress: null }, mine = [], favs = new Set(), shownReviews = [], solWallet = '', certs = [], lastQuote = null;
   let offline = false;
   async function loadBase() {
     try {
@@ -55,7 +55,7 @@
   }
   async function refreshLearning() {
     const student = me?.role === 'student';
-    [learning, mine] = student ? await Promise.all([api.get('/me/learning'), api.get('/me/products')]) : [{ courses: [], inProgress: null }, []];
+    [learning, mine, certs] = student ? await Promise.all([api.get('/me/learning'), api.get('/me/products'), api.get('/me/certificates').catch(() => [])]) : [{ courses: [], inProgress: null }, [], []];
   }
   // Guest favorites live in the browser; after sign-in they are moved to the server.
   async function refreshFavorites() {
@@ -185,7 +185,7 @@
     return `<article class="product-card ${compact ? 'compact' : ''}"><div class="product-cover"><a href="#product/${o.id}" tabindex="-1" aria-hidden="true">${cover(o.cover)}</a><button class="icon-button save-button ${saved ? 'saved' : ''}" data-action="save" data-id="${o.id}" aria-label="${saved ? 'Убрать из избранного' : 'В избранное'}" title="${saved ? 'Убрать из избранного' : 'В избранное'}" aria-pressed="${saved}">${icon('bookmark')}</button></div><div class="product-body"><div class="product-kicker">${esc(o.tag)}</div><a class="product-title" href="#product/${o.id}">${esc(o.title)}</a>${expertLink(o.expert)}<div class="product-meta">${meta}</div><div class="product-bottom"><strong>${money(o.price)}</strong>${rating(o.rating, o.reviews)}</div></div></article>`;
   }
   const signalLabels = { active: 'Открыт', success: 'Условие выполнено', miss: 'Не выполнено' };
-  const signalCard = f => `<article class="signal-card"><div class="signal-heading"><div class="ticker"><span class="ticker-symbol">${esc(f.ticker)}</span><div><strong>${esc(f.name)}</strong><p>${esc(f.ticker)} · USD · ${f.direction === 'up' ? 'рост' : 'снижение'}</p></div></div><span class="status ${f.status}">${signalLabels[f.status]}</span></div><p class="fc-condition-public">Цена закрытия на ${fmtDate(f.deadline)} ${f.direction === 'up' ? 'не ниже' : 'не выше'} ${usd(f.targetPrice)}</p><div class="signal-values"><div><label>При публикации</label><strong>${usd(f.startPrice)}</strong></div><div><label>Цель</label><strong>${usd(f.targetPrice)}</strong></div><div><label>${f.status === 'active' ? 'Проверка' : 'Итог'}</label><strong>${f.status === 'active' ? fmtDate(f.deadline).replace(/\s\d{4}$/, '') : usd(f.resultPrice)}</strong></div></div>${f.anchor ? `<button class="chain-badge" data-action="verify-anchor" data-id="${f.id}" title="Проверить запись в блокчейне">${icon('link-2')}Зафиксирован в Solana · проверить</button>` : ''}<div class="signal-bottom">${expertLink(f.expert)}<button class="text-link" data-action="signal" data-id="${f.id}">Обоснование ${icon('arrow-right')}</button></div></article>`;
+  const signalCard = f => `<article class="signal-card"><div class="signal-heading"><div class="ticker"><span class="ticker-symbol">${esc(f.ticker)}</span><div><strong>${esc(f.name)}</strong><p>${esc(f.ticker)} · USD · ${f.direction === 'up' ? 'рост' : 'снижение'}</p></div></div><span class="status ${f.status}">${signalLabels[f.status]}</span></div><p class="fc-condition-public">Цена закрытия на ${fmtDate(f.deadline)} ${f.direction === 'up' ? 'не ниже' : 'не выше'} ${usd(f.targetPrice)}</p><div class="signal-values"><div><label>При публикации</label><strong>${usd(f.startPrice)}</strong></div><div><label>Цель</label><strong>${usd(f.targetPrice)}</strong></div><div><label>${f.status === 'active' ? 'Проверка' : 'Итог'}</label><strong>${f.status === 'active' ? fmtDate(f.deadline).replace(/\s\d{4}$/, '') : usd(f.resultPrice)}</strong></div></div>${f.anchor ? `<button class="chain-badge" data-action="verify-anchor" data-id="${f.id}" title="Проверить запись в блокчейне">${icon('link-2')}Зафиксирован в Solana · проверить</button>` : f.chain ? `<span class="chain-chip pending">${icon('loader')}Записывается в Solana</span>` : ''}${f.result?.url ? `<a class="chain-chip ok" href="${esc(f.result.url)}" target="_blank" rel="noopener">${icon('flag')}Итог записан в Solana</a>` : ''}<div class="signal-bottom">${expertLink(f.expert)}<button class="text-link" data-action="signal" data-id="${f.id}">Обоснование ${icon('arrow-right')}</button></div></article>`;
   const expertsStrip = () => `<div class="experts-strip">${[...experts].sort(byRating).map(e => `<a class="expert-mini" href="#expert/${e.id}">${avatar(e.avatarUrl, e.name)}<div><strong>${esc(e.name)}</strong><p>${esc(e.specialization)}</p></div>${rating(e.rating)}</a>`).join('')}</div>`;
   // Horizontal shelf: section heading plus horizontally scrolling cards.
   const shelf = (title, label, href, count, items) => `<section class="shelf"><div class="shelf-head"><div><span class="shelf-label">${esc(label)}</span><h2>${esc(title)}</h2></div><div class="shelf-tools">${href ? `<a class="text-link" href="${href}">Все${count != null ? ` · ${count}` : ''} ${icon('arrow-right')}</a>` : ''}${items.length > 2 ? `<button class="icon-button" data-action="shelf" data-id="-1" aria-label="Листать назад" title="Назад">${icon('chevron-left')}</button><button class="icon-button" data-action="shelf" data-id="1" aria-label="Листать вперёд" title="Вперёд">${icon('chevron-right')}</button>` : ''}</div></div>${items.length ? `<div class="shelf-row">${items.join('')}</div>` : '<p class="shelf-empty">Здесь скоро появятся предложения экспертов.</p>'}</section>`;
@@ -348,7 +348,7 @@
       } else status = `${p.meta} · доступ без срока`;
       return `<article class="learning-row">${cover(p.coverUrl, p.title)}<div class="learning-info"><span class="product-kicker">${esc(p.typeName)} · ${esc(p.expert.name)}</span><h2><a href="#product/${p.id}">${esc(p.title)}</a></h2><p>${esc(status)}</p></div>${action}</article>`;
     }).join('');
-    return `<div class="page-topline"><span class="eyebrow">ВАШЕ ПРОСТРАНСТВО</span><span class="tiny-meta">${esc(me.name.split(' ')[0])}, рады вас видеть</span></div><h1>Моё обучение</h1><p class="subtitle">Всё, к чему вы уже сделали первый шаг.</p>${tabs}${rows || empty('Здесь начнётся новая история', 'Выберите программу или предложение, которое вам интересно.', 'book-open', `<a class="btn secondary" href="#mode/${libraryMode}">Смотреть предложения ${icon('arrow-right')}</a>`)}`;
+    return `<div class="page-topline"><span class="eyebrow">ВАШЕ ПРОСТРАНСТВО</span><span class="tiny-meta">${esc(me.name.split(' ')[0])}, рады вас видеть</span></div><h1>Моё обучение</h1><p class="subtitle">Всё, к чему вы уже сделали первый шаг.</p>${libraryMode === 'courses' ? certsBlock() : ''}${tabs}${rows || empty('Здесь начнётся новая история', 'Выберите программу или предложение, которое вам интересно.', 'book-open', `<a class="btn secondary" href="#mode/${libraryMode}">Смотреть предложения ${icon('arrow-right')}</a>`)}`;
   }
 
   async function lessonView(courseId, lessonId) {
@@ -371,6 +371,19 @@
 
   const commentItem = x => `<article class="comment-item ${x.role === 'expert' ? 'expert' : ''}" id="cm-${x.id}"><div class="review-top"><span class="user-avatar">${esc(x.author[0])}</span><strong>${esc(x.author)}</strong>${x.role === 'expert' ? '<span class="badge">Эксперт</span>' : x.role === 'moderator' ? '<span class="badge">Модератор</span>' : ''}<span class="tiny-meta">${fmtDate(x.createdAt)}</span>${x.canDelete ? `<button class="icon-button comment-del" data-action="delete-comment" data-id="${x.id}" title="Удалить" aria-label="Удалить">${icon('trash-2')}</button>` : ''}</div><p>${esc(x.text)}</p></article>`;
   const commentsBlock = (list, lessonId) => `<section class="lesson-comments"><h2>Вопросы и обсуждение <span class="tiny-meta">${list.length}</span></h2><div id="commentList">${list.length ? list.map(commentItem).join('') : '<p class="subtitle" id="noComments">Пока нет вопросов. Спросите первым: эксперт отвечает здесь же.</p>'}</div><form id="commentForm" class="comment-form" data-lesson="${lessonId}"><textarea name="text" rows="2" maxlength="1000" required placeholder="Задайте вопрос по уроку или поделитесь мыслью"></textarea><button class="btn" type="submit">${icon('send')}Отправить</button></form><p class="fine-print">Обсуждение видят ученики курса и эксперт. Отзыв о курсе — отдельно, после прохождения всех уроков.</p></section>`;
+
+  const certStatus = c => c.nft
+    ? `<span class="chain-chip ok">${icon('shield-check')}NFT в вашем кошельке DAL</span>`
+    : `<span class="chain-chip">${icon('loader')}${c.chain?.retrying ? 'Сеть Solana недоступна — повторим автоматически' : 'NFT создаётся в Solana'}</span>`;
+  const certsBlock = () => certs.length ? `<section class="cert-strip"><div class="section-head" style="margin-top:0"><h2>Мои сертификаты</h2><span class="tiny-meta">Выдаются автоматически после прохождения всех уроков</span></div><div class="cert-list">${certs.map(c => `<article class="cert-mini"><span class="cert-icon">${icon('award')}</span><div><strong>${esc(c.courseTitle)}</strong><p>${fmtDate(c.completedAt)} · ${esc(c.id)}</p>${certStatus(c)}</div><button class="btn secondary" data-action="certificate" data-id="${c.id}">Открыть</button></article>`).join('')}</div></section>` : '';
+  async function openCertificate(id, fresh = false) {
+    if (!certs.some(c => c.id === id)) certs = await api.get('/me/certificates');
+    const c = certs.find(x => x.id === id); if (!c) return;
+    const status = c.nft
+      ? `<div class="verify ok">${icon('shield-check')}<span><strong>Сертификат записан в Solana как NFT</strong><small>Он в вашем кошельке DAL. Любой может проверить его по ссылке — без регистрации и без кошелька. <a class="text-link" href="${esc(c.nft.url)}" target="_blank" rel="noopener">Solana Explorer</a></small></span></div>`
+      : `<div class="notice">${icon('clock')} Сертификат уже действует: его можно скачать и отправить. Запись в Solana создаётся в фоне — обычно за минуту, делать ничего не нужно.</div>`;
+    openDialog(fresh ? 'Поздравляем! Курс пройден' : 'Сертификат', `${window.DalCert.card(c)}${status}<div class="modal-actions cert-actions"><button class="btn" data-action="cert-pdf" data-id="${c.id}">${icon('download')}Скачать PDF</button><button class="btn secondary" data-action="cert-copy" data-id="${c.id}">${icon('link')}Ссылка для проверки</button><a class="btn secondary" href="${esc(c.verifyUrl)}" target="_blank" rel="noopener">${icon('external-link')}Открыть проверку</a></div>`, 'wide');
+  }
 
   const RANK_TABS = [['all', 'Общий'], ...modes.map(m => [m.id, m.name]), ['signals', 'Прогнозы']];
   function rankingsView() {
@@ -398,10 +411,27 @@
     </div>`;
   }
 
-  function profileView() {
+  async function profileView() {
     if (!me) return `<h1>Личный профиль</h1>${loginPrompt('Войдите, чтобы изменить профиль.')}`;
     const editable = me.role !== 'expert';
-    return `<div class="page-topline"><span class="eyebrow">ВАШЕ ПРОСТРАНСТВО</span></div><h1>Личный профиль</h1><form class="profile-form" id="profileForm"><div class="avatar-edit"><span class="user-avatar profile-avatar">${userPic(me)}</span><div><label class="btn secondary" tabindex="0">${icon('camera')}${me.avatarUrl ? 'Сменить фото' : 'Загрузить фото'}<input type="file" id="avatarInput" accept="image/jpeg,image/png,image/webp" hidden></label>${me.avatarUrl ? `<button type="button" class="text-link" data-action="avatar-remove">${icon('trash-2')}Убрать фото</button>` : ''}<p class="fine-print">JPG, PNG или WEBP до 5 МБ. Фото видят эксперты и участники клубов.</p></div></div><label class="form-label">Имя и фамилия<input type="text" name="name" maxlength="60" required value="${esc(me.name)}" ${editable ? '' : 'readonly'}></label>${editable ? '' : `<p class="fine-print">Имя эксперта меняется через модерацию: <a class="text-link" href="/studio.html#profile">Публичный профиль в Dal Studio</a>.</p>`}<label class="form-label">Электронная почта<input type="email" value="${esc(me.email)}" readonly></label><p class="fine-print">Роль: ${ROLE[me.role]}. С нами с ${fmtDate(me.createdAt)}.</p>${editable ? `<button class="btn" type="submit">${icon('check')}Сохранить изменения</button>` : ''}</form>`;
+    return `<div class="page-topline"><span class="eyebrow">ВАШЕ ПРОСТРАНСТВО</span></div><h1>Личный профиль</h1><form class="profile-form" id="profileForm"><div class="avatar-edit"><span class="user-avatar profile-avatar">${userPic(me)}</span><div><label class="btn secondary" tabindex="0">${icon('camera')}${me.avatarUrl ? 'Сменить фото' : 'Загрузить фото'}<input type="file" id="avatarInput" accept="image/jpeg,image/png,image/webp" hidden></label>${me.avatarUrl ? `<button type="button" class="text-link" data-action="avatar-remove">${icon('trash-2')}Убрать фото</button>` : ''}<p class="fine-print">JPG, PNG или WEBP до 5 МБ. Фото видят эксперты и участники клубов.</p></div></div><label class="form-label">Имя и фамилия<input type="text" name="name" maxlength="60" required value="${esc(me.name)}" ${editable ? '' : 'readonly'}></label>${editable ? '' : `<p class="fine-print">Имя эксперта меняется через модерацию: <a class="text-link" href="/studio.html#profile">Публичный профиль в Dal Studio</a>.</p>`}<label class="form-label">Электронная почта<input type="email" value="${esc(me.email)}" readonly></label><p class="fine-print">Роль: ${ROLE[me.role]}. С нами с ${fmtDate(me.createdAt)}.</p>${editable ? `<button class="btn" type="submit">${icon('check')}Сохранить изменения</button>` : ''}</form>${await walletSection()}${me.role === 'student' ? await ordersSection() : ''}`;
+  }
+
+  // The built-in wallet: no crypto knowledge needed; it is linked to the account and survives a password reset.
+  async function walletSection() {
+    const d = await api.get('/me/wallet').catch(() => null);
+    if (!d) return '';
+    const w = d.wallet;
+    const body = w
+      ? `<div class="wallet-row"><code class="wallet-address">${esc(w.address)}</code><button class="icon-button" data-action="copy-text" data-text="${esc(w.address)}" title="Скопировать адрес" aria-label="Скопировать адрес">${icon('copy')}</button><a class="text-link" href="${esc(w.url)}" target="_blank" rel="noopener">${icon('external-link')}Solana Explorer</a></div><p class="fine-print">Создан ${fmtDate(w.createdAt)}. Сертификатов: ${d.certificates}${me.role === 'expert' ? ` · прогнозов, записанных в Solana: ${d.forecasts}` : ''}.</p>`
+      : `<p class="fine-print">Кошелёк создастся автоматически, когда понадобится: например, при получении первого сертификата${me.role === 'expert' ? ' или публикации прогноза' : ''}.</p>`;
+    return `<section class="wallet-section"><h2>${icon('wallet')}Кошелёк DAL</h2><p class="subtitle">Встроенный кошелёк привязан к вашему аккаунту. Покупать криптовалюту, ставить расширения и платить комиссии сети не нужно — это делает DAL.</p>${body}<div class="wallet-help"><div><strong>${icon('life-buoy')}Если забудете пароль</strong><p>Восстановите доступ по коду на почту — кошелёк, сертификаты и записи в блокчейне останутся с аккаунтом.</p></div><div><strong>${icon('key-round')}Свой криптокошелёк</strong><p>Можно забрать ключ и открыть кошелёк в Phantom. Для DAL это не обязательно.</p>${w ? `<button class="text-link" data-action="wallet-export">${icon('key-round')}Экспортировать ключ</button>` : ''}</div></div></section>`;
+  }
+  async function ordersSection() {
+    const list = await api.get('/me/orders').catch(() => []);
+    if (!list.length) return '';
+    const st = { paid: 'Оплачен', pending: 'Проверяется', failed: 'Не прошёл' };
+    return `<section class="wallet-section"><h2>${icon('receipt')}Мои заказы</h2><div class="rank-table-wrap"><table class="rank-table orders-table"><thead><tr><th>Дата</th><th>Что</th><th>Цена</th><th>Сетевой сбор</th><th>Итого</th><th>Оплата</th><th>Статус</th></tr></thead><tbody>${list.map(o => `<tr><td>${fmtDate(o.createdAt)}</td><td>${esc(o.title || '')}</td><td>${money(o.price)}</td><td>${o.networkFee ? money(o.networkFee) : '—'}</td><td><strong>${money(o.total)}</strong></td><td>${o.method === 'usdc' ? `USDC${o.chain?.url ? ` · <a class="text-link" href="${esc(o.chain.url)}" target="_blank" rel="noopener">Solana</a>` : ''}` : 'Карта'}</td><td>${st[o.status]}</td></tr>`).join('')}</tbody></table></div><p class="fine-print">Комиссия DAL уже включена в цену. Сетевой сбор берётся один раз за заказ, использующий блокчейн.</p></section>`;
   }
 
   function savedView() {
@@ -423,7 +453,7 @@
       case 'category': return categoryView(cat);
       case 'product': return productView(id);
       case 'expert': return expertView(id);
-      case 'learning': return learningView();
+      case 'learning': if (me?.role === 'student') certs = await api.get('/me/certificates').catch(() => certs); return learningView();
       case 'lesson': return lessonView(id, cat);
       case 'rankings': return rankingsView();
       case 'settings': return settingsView();
@@ -458,7 +488,13 @@
     closeProfile();
     if (newRoute) { window.scrollTo({ top: 0, behavior: 'instant' }); if (lastNav) main.focus({ preventScroll: true }); }
     lastNav = hash;
+    // Records are written to Solana in the background: refresh the page a few times while something is pending.
+    clearTimeout(chainPoll);
+    const pending = (page === 'learning' && certs.some(c => !c.nft)) || $('.chain-chip.pending', main);
+    if (pending && pollCount < 20) { pollCount++; chainPoll = setTimeout(() => { if ((location.hash || '#home').slice(1) === hash && !modal.open) render(); }, 6000); }
+    else if (newRoute) pollCount = 0;
   }
+  let chainPoll = 0, pollCount = 0;
 
   // ---------- Dialogs and actions ----------
   function toast(m) { clearTimeout(toastTimer); $('#toast').textContent = m; $('#toast').classList.add('visible'); toastTimer = setTimeout(() => $('#toast').classList.remove('visible'), 3200); }
@@ -478,12 +514,47 @@
     const r = offers().filter(o => (o.title + ' ' + o.expert.name + ' ' + o.tag).toLocaleLowerCase('ru').includes(q)).slice(0, 7);
     return r.length ? r.map(o => `<a class="search-result" href="#product/${o.id}">${cover(o.cover)}<div><strong>${esc(o.title)}</strong><small>${esc(o.tag)} · ${esc(o.expert.name)} · ${money(o.price)}</small></div>${icon('arrow-up-right')}</a>`).join('') : '<p class="modal-text">Ничего не найдено. Попробуйте другое слово.</p>';
   }
-  function buyCourse(id) {
+  // Checkout: the full cost is visible before paying — price, DAL commission, the network fee and the total.
+  const NETWORK_FEE_INFO = 'Сетевой сбор — фиксированные 5 ₸ один раз за оплаченный заказ, который использует блокчейн: у курса это NFT-сертификат, при оплате в USDC — сама оплата. Фактическую комиссию сети Solana платит DAL.';
+  function breakdownHtml(method) {
+    const q = lastQuote.methods[method], line = (k, v, cls = '') => `<div class="order-line ${cls}"><span>${k}</span><strong>${v}</strong></div>`;
+    return line('Цена', money(q.price))
+      + line(`Комиссия DAL (${Math.round(q.commission / q.price * 100)}%) — уже в цене`, money(q.commission), 'sub')
+      + line('Эксперт получит', money(q.expertGets), 'sub')
+      + line(`Сетевой сбор <button type="button" class="info-dot" data-action="fee-info" aria-label="Что такое сетевой сбор" title="Что такое сетевой сбор">${icon('info')}</button>`, q.networkFee ? money(q.networkFee) : 'Нет')
+      + line('Итого к оплате', money(q.total), 'total')
+      + (method === 'usdc' && q.usdc ? `<p class="fine-print usdc-split">≈ ${q.usdc.total.toFixed(2)} USDC (курс ${q.usdc.rate} ₸): ${q.usdc.toExpert.toFixed(2)} USDC эксперту и ${q.usdc.toDal.toFixed(2)} USDC DAL — одной транзакцией Solana. Сетевые расходы оплачивает DAL.</p>` : '');
+  }
+  async function checkoutHtml(kind, id, price) {
+    if (!price) { lastQuote = null; return `<div class="order-line total"><span>Итого</span><strong>${money(0)}</strong></div>`; }
+    lastQuote = await api.post('/checkout/quote', { kind, id });
+    return `<div id="checkoutBox">${breakdownHtml('card')}</div><fieldset class="pay-methods"><legend>Способ оплаты</legend><label class="pay-method"><input type="radio" name="payMethod" value="card" checked><span><strong>Банковская карта</strong><small>Visa, Mastercard, Kaspi · в прототипе без списания денег</small></span></label><label class="pay-method"><input type="radio" name="payMethod" value="usdc"><span><strong>USDC в сети Solana</strong><small>Для тех, у кого есть криптокошелёк Phantom · Devnet, бета</small></span></label></fieldset>`;
+  }
+  const payMethod = () => $('input[name=payMethod]:checked')?.value || 'card';
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  async function payUsdc(kind, id) {
+    if (!window.DalSolana?.hasWallet()) throw new Error('Для оплаты в USDC нужен кошелёк Phantom (сеть Devnet). Или выберите оплату картой.');
+    const payer = await window.DalSolana.connect();
+    const r = await api.post('/orders', { kind, id, method: 'usdc', payer });
+    const sig = await window.DalSolana.signAndSendPartial(r.transaction, r.payerIndex);
+    await api.post(`/orders/${r.order.id}/submit`, { signature: sig });
+    toast('Платёж отправлен. Проверяем его в сети Solana…');
+    for (let i = 0; i < 40; i++) {
+      await sleep(3000);
+      const o = await api.get(`/orders/${r.order.id}`);
+      if (o.status === 'paid') return o;
+      if (o.status === 'failed') throw new Error(o.error || 'Платёж не прошёл проверку');
+    }
+    throw new Error('Платёж ещё проверяется. Доступ откроется автоматически — загляните в «Моё обучение» через минуту.');
+  }
+
+  async function buyCourse(id) {
     if (!me) { location.href = api.loginUrl(`/#product/${id}`); return; }
     const o = findOffer(id); if (!o) return;
-    openDialog(o.price ? 'Получить доступ' : 'Начать бесплатно', `<p class="modal-text">${esc(o.title)}</p><div class="order-line"><span>Эксперт</span><strong>${esc(o.expert.name)}</strong></div><div class="order-line"><span>Уроков</span><strong>${o.lessons}</strong></div><div class="order-line"><span>Итого</span><strong>${money(o.price)}</strong></div><div class="notice">Оплата пока не подключена: доступ откроется без списания денег. Цена фиксируется в момент покупки.</div><div class="modal-actions"><button class="btn secondary" data-action="close-modal">Отмена</button><button class="btn" data-action="confirm-buy" data-id="${id}">${icon('check')}Открыть доступ</button></div>`);
+    const pay = await checkoutHtml('course', id, o.price);
+    openDialog(o.price ? 'Получить доступ' : 'Начать бесплатно', `<p class="modal-text">${esc(o.title)}</p><div class="order-line"><span>Эксперт</span><strong>${esc(o.expert.name)}</strong></div><div class="order-line"><span>Уроков</span><strong>${o.lessons}</strong></div>${pay}<div class="notice">${icon('award')} После прохождения всех уроков вы автоматически получите сертификат с проверкой в блокчейне. Ничего настраивать не нужно.</div><div class="modal-actions"><button class="btn secondary" data-action="close-modal">Отмена</button><button class="btn" data-action="confirm-buy" data-id="${id}">${icon('check')}${o.price ? 'Оплатить' : 'Открыть доступ'}</button></div>`);
   }
-  function buyProduct(id) {
+  async function buyProduct(id) {
     if (!me) { location.href = api.loginUrl(`/#product/${id}`); return; }
     const o = findOffer(id); if (!o) return;
     const pu = myProduct(id)?.purchase;
@@ -500,7 +571,8 @@
       what = o.meta;
       terms = 'Полный текст откроется сразу и останется у вас. Материалы не возвращаются.';
     }
-    openDialog(pu?.active ? 'Продлить подписку' : 'Получить доступ', `<p class="modal-text">${esc(o.title)}</p><div class="order-line"><span>Эксперт</span><strong>${esc(o.expert.name)}</strong></div><div class="order-line"><span>${esc(o.tag)}</span><strong>${esc(what)}</strong></div><div class="order-line"><span>Итого</span><strong>${money(o.price)}</strong></div><div class="notice">${terms} Оплата пока не подключена: доступ откроется без списания денег.</div><div class="modal-actions"><button class="btn secondary" data-action="close-modal">Отмена</button><button class="btn" data-action="confirm-product" data-id="${id}">${icon('check')}${o.price ? 'Оплатить' : 'Получить'}</button></div>`);
+    const pay = await checkoutHtml('product', id, o.price);
+    openDialog(pu?.active ? 'Продлить подписку' : 'Получить доступ', `<p class="modal-text">${esc(o.title)}</p><div class="order-line"><span>Эксперт</span><strong>${esc(o.expert.name)}</strong></div><div class="order-line"><span>${esc(o.tag)}</span><strong>${esc(what)}</strong></div>${pay}<div class="notice">${terms}</div><div class="modal-actions"><button class="btn secondary" data-action="close-modal">Отмена</button><button class="btn" data-action="confirm-product" data-id="${id}">${icon('check')}${o.price ? 'Оплатить' : 'Получить'}</button></div>`);
   }
 
   async function openBooking(id) {
@@ -617,25 +689,26 @@
       case 'accent': prefs.accent = id; savePrefs(); render(); break;
       case 'save': guard(() => saveOffer(id), button); break;
       case 'shelf': { const row = button.closest('.shelf').querySelector('.shelf-row'); row?.scrollBy({ left: Number(id) * row.clientWidth * .9, behavior: prefs.motion ? 'smooth' : 'auto' }); break; }
-      case 'buy': buyCourse(id); break;
-      case 'buy-product': buyProduct(id); break;
+      case 'buy': guard(() => buyCourse(id), button); break;
+      case 'buy-product': guard(() => buyProduct(id), button); break;
+      case 'fee-info': toast(NETWORK_FEE_INFO); break;
       case 'book': guard(() => openBooking(id), button); break;
       case 'chat': guard(() => openChat(id), button); break;
       case 'close-modal': modal.close(); break;
       case 'reload': guard(async () => { await loadBase(); render(); }, button); break;
       case 'confirm-buy': guard(async () => {
-        await api.post(`/courses/${id}/enroll`);
+        if (payMethod() === 'usdc') await payUsdc('course', id); else await api.post(`/courses/${id}/enroll`);
         await afterChange();
         modal.close(); toast('Доступ открыт. Курс в «Моём обучении».'); location.hash = `#lesson/${id}`;
       }, button); break;
       case 'confirm-product': guard(async () => {
-        const r = await api.post(`/products/${id}/buy`);
+        const r = payMethod() === 'usdc' ? await payUsdc('product', id) : await api.post(`/products/${id}/buy`);
         await afterChange();
         modal.close();
         const p = myProduct(id);
         if (p?.productKind === 'sessions') { await render(); toast('Оплачено. Выберите время встречи.'); await openBooking(id); return; }
         await render();
-        toast(p?.productKind === 'subscription' ? (r.renewed ? `Подписка продлена до ${fmtDate(r.expiresAt)}` : `Вы в клубе до ${fmtDate(r.expiresAt)}`) : 'Материал открыт');
+        toast(p?.productKind === 'subscription' ? (r.expiresAt ? (r.renewed ? `Подписка продлена до ${fmtDate(r.expiresAt)}` : `Вы в клубе до ${fmtDate(r.expiresAt)}`) : 'Оплачено. Подписка активна.') : 'Материал открыт');
       }, button); break;
       case 'refund': confirmDialog('Вернуть курс?', 'Возврат возможен в течение 14 дней после покупки, если пройдено меньше 20% курса. После возврата доступ к урокам закроется.', 'confirm-refund', id, 'Вернуть'); break;
       case 'confirm-refund': guard(async () => {
@@ -657,13 +730,17 @@
       case 'preview': openDialog(esc(button.dataset.title), `<video class="lesson-video" controls autoplay playsinline src="${esc(button.dataset.src)}"></video><p class="fine-print">Бесплатный урок: его можно посмотреть до покупки.</p>`, 'wide'); break;
       case 'complete-lesson': guard(async () => {
         const course = button.dataset.course;
-        await api.post(`/lessons/${id}/complete`);
+        const r = await api.post(`/lessons/${id}/complete`);
         await refreshLearning();
-        const c = learning.courses.find(x => x.id === course);
-        toast(c && c.progress.done === c.progress.total ? 'Поздравляем! Курс пройден.' : 'Урок завершён');
-        render();
+        await render();
+        if (r.certificateId) openCertificate(r.certificateId, true); else toast('Урок завершён');
       }, button); break;
       case 'library-tab': libraryMode = id; render(); break;
+      case 'certificate': guard(() => openCertificate(id), button); break;
+      case 'cert-pdf': guard(() => window.DalCert.pdf(certs.find(c => c.id === id)), button); break;
+      case 'cert-copy': { const c = certs.find(x => x.id === id); navigator.clipboard?.writeText(c.verifyUrl).then(() => toast('Ссылка для проверки скопирована'), () => toast(c.verifyUrl)); break; }
+      case 'wallet-export': openDialog('Экспорт ключа кошелька', `<p class="modal-text">Ключ нужен, только если вы хотите перенести сертификаты в свой криптокошелёк (например, Phantom). Для работы с DAL он не нужен.</p><div class="notice">${icon('triangle-alert')} Никому не показывайте ключ: с ним можно распоряжаться кошельком. Сотрудники DAL никогда его не попросят.</div><form id="exportForm"><label class="form-label">Пароль от аккаунта<input type="password" name="password" required autocomplete="current-password"></label><button class="btn wide" type="submit" style="margin-top:16px">${icon('key-round')}Показать ключ</button></form>`); break;
+      case 'copy-text': navigator.clipboard?.writeText(button.dataset.text).then(() => toast('Скопировано'), () => {}); break;
       case 'expert-tab': expertMode = id; render(); break;
       case 'rank-tab': rankMode = id; render(); break;
       case 'rank-link': rankMode = id; break;
@@ -689,7 +766,7 @@
       }, button); break;
       case 'signal': {
         const f = forecasts.find(x => x.id === id);
-        openDialog(`${esc(f.ticker)}: обоснование`, `<p class="modal-text">${esc(f.rationale)}</p><div class="order-line"><span>Автор</span><strong>${esc(f.expert.name)}</strong></div><div class="order-line"><span>Опубликован</span><strong>${fmtDate(f.publishedAt)}</strong></div><div class="order-line"><span>Проверка условия</span><strong>${fmtDate(f.deadline)}</strong></div>${f.comments.length ? `<h3 class="modal-sub">Комментарии автора</h3>${f.comments.map(c => `<p class="modal-text"><small>${fmtDate(c.createdAt)}</small><br>${esc(c.text)}</p>`).join('')}` : ''}<p class="notice">Это не торговая рекомендация. Условие и срок зафиксированы при публикации.</p>`);
+        openDialog(`${esc(f.ticker)}: обоснование`, `<p class="modal-text">${esc(f.rationale)}</p><div class="order-line"><span>Автор</span><strong>${esc(f.expert.name)}</strong></div><div class="order-line"><span>Опубликован</span><strong>${fmtDate(f.publishedAt)}</strong></div><div class="order-line"><span>Проверка условия</span><strong>${fmtDate(f.deadline)}</strong></div>${f.rule ? `<div class="order-line"><span>Правило проверки</span><strong><code>${esc(f.rule)}</code></strong></div><div class="order-line"><span>Источник цены</span><strong>${esc(f.priceSource)}</strong></div>` : ''}${f.comments.length ? `<h3 class="modal-sub">Комментарии автора</h3>${f.comments.map(c => `<p class="modal-text"><small>${fmtDate(c.createdAt)}</small><br>${esc(c.text)}</p>`).join('')}` : ''}<p class="notice">Это не торговая рекомендация. Условие и срок зафиксированы при публикации.</p>`);
         break;
       }
       case 'review': openDialog('Ваш отзыв', `<form id="reviewForm" data-id="${id}" data-kind="${button.dataset.kind}"><label class="form-label">Оценка<select name="rating"><option value="5">5 · Отлично</option><option value="4">4 · Хорошо</option><option value="3">3 · Нормально</option><option value="2">2 · Ниже ожиданий</option><option value="1">1 · Не понравилось</option></select></label><label class="form-label" style="margin-top:15px">Что было полезно?<textarea name="text" required minlength="10" maxlength="1500" rows="5"></textarea></label><p class="fine-print" style="margin-top:15px">Отзыв увидят все. Изменить или удалить его будет нельзя.</p><button class="btn wide" style="margin-top:20px" type="submit">Опубликовать отзыв</button></form>`); break;
@@ -705,6 +782,7 @@
     if (e.target.id === 'globalSearch') { $('#searchResults').innerHTML = searchResults(e.target.value); icons(); }
   });
   document.addEventListener('change', e => {
+    if (e.target.name === 'payMethod' && lastQuote) { $('#checkoutBox').innerHTML = breakdownHtml(e.target.value); icons(); }
     if (e.target.id === 'catalogSort') { catalogSort = e.target.value; refreshResults(); }
     if (e.target.id === 'freeOnly') { freeOnly = e.target.checked; refreshResults(); }
     if (e.target.id === 'motionToggle') { prefs.motion = e.target.checked; savePrefs(); applyAppearance(); icons(); }
@@ -716,7 +794,7 @@
   });
   document.addEventListener('submit', e => {
     const form = e.target;
-    if (!['profileForm', 'chatForm', 'bookingForm', 'reviewForm', 'commentForm'].includes(form.id)) return;
+    if (!['profileForm', 'chatForm', 'bookingForm', 'reviewForm', 'commentForm', 'exportForm'].includes(form.id)) return;
     e.preventDefault();
     const data = new FormData(form), btn = $('button[type=submit]', form);
     if (form.id === 'profileForm') guard(async () => {
@@ -730,6 +808,10 @@
       const base = form.dataset.kind === 'course' ? 'courses' : 'products';
       await api.post(`/${base}/${form.dataset.id}/reviews`, { rating: Number(data.get('rating')), text });
       await refreshCatalog(); modal.close(); render(); toast(form.dataset.kind === 'course' ? 'Отзыв опубликован. Его можно зафиксировать в Solana.' : 'Отзыв опубликован');
+    }, btn);
+    if (form.id === 'exportForm') guard(async () => {
+      const r = await api.post('/me/wallet/export', { password: String(data.get('password')) });
+      openDialog('Ключ кошелька', `<p class="modal-text">Адрес: <code>${esc(r.address)}</code></p><label class="form-label">Секретный ключ (импорт в Phantom: Add wallet → Import private key)<textarea readonly rows="3" class="secret-key">${esc(r.secretKey)}</textarea></label><div class="modal-actions"><button class="btn secondary" data-action="copy-text" data-text="${esc(r.secretKey)}">${icon('copy')}Скопировать</button><button class="btn" data-action="close-modal">Готово</button></div>`);
     }, btn);
     if (form.id === 'commentForm') guard(async () => {
       const input = form.elements.text, text = input.value.trim();

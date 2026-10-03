@@ -5,6 +5,7 @@ import type { App } from './app.ts';
 import { HttpError, notFound, conflict, forbidden, type User } from './http.ts';
 import { RULES, CATEGORY_NAMES, COVER_LIBRARY } from './rules.ts';
 import { expertBrief } from './experts.ts';
+import { newId } from './util.ts';
 
 export const isLive = (c: Row) => c.status === 'published' || c.status === 'hidden';
 
@@ -154,3 +155,15 @@ export const touch = (db: DB, courseId: string) => db.run('UPDATE courses SET up
 
 export const requireFound = <T>(v: T | undefined, msg: string): T => { if (v === undefined || v === null) throw notFound(msg); return v; };
 export { HttpError, RULES };
+
+/** Grants course access (used by every payment method). The caller has already checked the order. */
+export function enrollCourse(db: DB, userId: string, c: Row, o: { networkFee?: number; orderId?: string } = {}) {
+  return db.tx(() => {
+    const e = db.get('SELECT * FROM enrollments WHERE user_id = ? AND course_id = ?', userId, c.id);
+    if (e?.status === 'active') throw conflict('already_enrolled', 'У вас уже есть доступ к этому курсу');
+    const commission = Math.round(c.price * RULES.commission), at = new Date().toISOString();
+    if (e) db.run(`UPDATE enrollments SET status = 'active', price_paid = ?, commission = ?, network_fee = ?, order_id = ?, created_at = ?, refunded_at = NULL WHERE id = ?`, c.price, commission, o.networkFee ?? 0, o.orderId ?? null, at, e.id);
+    else db.run('INSERT INTO enrollments (id, user_id, course_id, price_paid, commission, network_fee, order_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', newId(), userId, c.id, c.price, commission, o.networkFee ?? 0, o.orderId ?? null, at);
+    return { courseId: c.id, pricePaid: c.price, status: 'active' };
+  });
+}

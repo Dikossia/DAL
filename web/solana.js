@@ -68,8 +68,44 @@ window.DalSolana = (() => {
     return { found: true, ok: memos.includes(expectedMemo), memo: memos[0] || '', slot: tx.slot, blockTime: tx.blockTime ? new Date(tx.blockTime * 1000).toISOString() : null, signer: tx.transaction.message.accountKeys[0]?.pubkey || '' };
   }
 
+  // USDC payment: DAL already signed as the fee payer; the buyer's wallet adds its signature, then the page sends it.
+  async function signAndSendPartial(txB58, payerIndex) {
+    await connect();
+    let wire = b58decode(txB58);
+    const r = await provider().request({ method: 'signTransaction', params: { message: txB58 } });
+    if (r && typeof r.signature === 'string' && b58decode(r.signature).length === 64) wire.set(b58decode(r.signature), 1 + 64 * payerIndex);
+    else {
+      const t = r?.transaction || (typeof r === 'string' ? r : null);
+      if (!t) throw new Error('Кошелёк не вернул подписанную транзакцию');
+      wire = b58decode(t);
+    }
+    let bin = ''; for (const b of wire) bin += String.fromCharCode(b);
+    return rpc('sendTransaction', [btoa(bin), { encoding: 'base64', preflightCommitment: 'confirmed' }]);
+  }
+
+  // Certificate check straight from Solana: the record (memo) and the NFT account (Metaplex Core).
+  const CORE = 'CoREENxT6tW1HoK8ypY1SxRMZTcVPm7R94rH4PZNhX7d';
+  async function readRecord(signature) {
+    const tx = await rpc('getTransaction', [signature, { encoding: 'jsonParsed', commitment: 'confirmed', maxSupportedTransactionVersion: 0 }]);
+    if (!tx) return null;
+    const memo = (tx.transaction.message.instructions || []).filter(i => i.program === 'spl-memo' || i.programId === MEMO_PROGRAM).map(i => typeof i.parsed === 'string' ? i.parsed : '')[0] || '';
+    const fields = {}; for (const part of memo.split(' | ').slice(1)) { const i = part.indexOf('='); if (i > 0) fields[part.slice(0, i)] = part.slice(i + 1); }
+    return { memo, fields, ok: !tx.meta?.err, feePayer: tx.transaction.message.accountKeys[0]?.pubkey || '', signers: tx.transaction.message.accountKeys.filter(k => k.signer).map(k => k.pubkey), blockTime: tx.blockTime ? new Date(tx.blockTime * 1000).toISOString() : null, slot: tx.slot };
+  }
+  async function readCoreAsset(address) {
+    const r = await rpc('getAccountInfo', [address, { encoding: 'base64', commitment: 'confirmed' }]);
+    const v = r.value; if (!v) return null;
+    const d = Uint8Array.from(atob(v.data[0]), c => c.charCodeAt(0));
+    let o = 0; const key = d[o++]; const owner = b58encode(d.slice(o, o + 32)); o += 32;
+    const uaTag = d[o++]; const updateAuthority = uaTag ? b58encode(d.slice(o, o + 32)) : null; if (uaTag) o += 32;
+    const str = () => { const n = new DataView(d.buffer).getUint32(o, true); o += 4; const t = new TextDecoder().decode(d.slice(o, o + n)); o += n; return t; };
+    const name = str(), uri = str();
+    return { program: v.owner, isCore: v.owner === CORE && key === 1, owner, updateAuthority, name, uri };
+  }
+
   const explorer = sig => `https://explorer.solana.com/tx/${sig}?cluster=${CLUSTER}`;
-  return { CLUSTER, anchor, verify, connect, balance, airdrop, explorer, hasWallet: () => !!provider(), _memoTransaction: memoTransaction, _b58encode: b58encode, _b58decode: b58decode };
+  const explorerAddress = a => `https://explorer.solana.com/address/${a}?cluster=${CLUSTER}`;
+  return { CLUSTER, anchor, verify, connect, balance, airdrop, explorer, explorerAddress, signAndSendPartial, readRecord, readCoreAsset, hasWallet: () => !!provider(), _memoTransaction: memoTransaction, _b58encode: b58encode, _b58decode: b58decode };
 })();
 
 // Wallet button in the header: Phantom connection, address, Devnet balance, test SOL, Explorer link.

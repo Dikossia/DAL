@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
-import { createApp, SERVER_ROOT } from '../src/app.ts';
+import { createApp, SERVER_ROOT, type AppOptions } from '../src/app.ts';
 import { openDb, migrate } from '../src/db.ts';
 import { seed, DEMO_PASSWORD } from '../src/seed.ts';
 
@@ -11,14 +11,14 @@ export const VIDEO = fs.readFileSync(path.join(SERVER_ROOT, 'seed-assets', 'demo
 interface Req { token?: string; body?: unknown; headers?: Record<string, string>; raw?: Buffer }
 
 // Starts the server on a free port with a separate database and demo data.
-export async function startApp() {
+export async function startApp(extra: Partial<AppOptions> = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'dal-test-'));
   const dbPath = path.join(dir, 'test.db'), storageDir = path.join(dir, 'storage');
   const db = openDb(dbPath);
   migrate(db, path.join(SERVER_ROOT, 'migrations'));
   seed(db, path.resolve(SERVER_ROOT, '..'), path.join(SERVER_ROOT, 'seed-assets'));
   db.close();
-  const { app, server, close } = createApp({ dbPath, storageDir });
+  const { app, server, close } = createApp({ dbPath, storageDir, ...extra });
   await new Promise<void>(r => server.listen(0, '127.0.0.1', r));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 

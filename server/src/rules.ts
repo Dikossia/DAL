@@ -12,7 +12,14 @@ export const RULES = {
   sessionDays: 30,               // session lifetime
   payoutDays: [5, 20],           // days of the month when payouts happen
   loginAttempts: 10,             // failed sign-in attempts per window
-  loginWindowMin: 15
+  loginWindowMin: 15,
+  // Blockchain (Solana) — everything below runs under the hood, users never need crypto.
+  networkFee: 5,                 // ₸, charged once per paid order that uses the blockchain
+  forecastNetworkFee: 5,         // ₸, charged to the expert per published forecast (deducted from income); 0 turns it off
+  kztPerSol: 53500,              // for cost reports: 1 SOL ≈ $119.6 × 447.7 ₸ (3 Oct 2026)
+  kztPerUsdc: 448,               // conversion for USDC payments (1 USDC ≈ 1 USD)
+  resetCodeMinutes: 30,          // account recovery code lifetime
+  resetAttempts: 5               // wrong code attempts before the code is burned
 } as const;
 
 export const ROLES = ['student', 'expert', 'moderator'] as const;

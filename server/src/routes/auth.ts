@@ -3,6 +3,8 @@ import { HttpError } from '../http.ts';
 import { parse, str, oneOf } from '../validate.ts';
 import { hashPassword, verifyPassword, createSession, dropSession, tokenFrom } from '../auth.ts';
 import { newId, nowIso } from '../util.ts';
+import { RULES } from '../rules.ts';
+import { randomInt, createHash } from 'node:crypto';
 import { avatarUrl } from '../experts.ts';
 
 export function registerAuth(app: App) {
@@ -66,6 +68,50 @@ export function registerAuth(app: App) {
       const b = parse<{ name: string }>(body, { name: str({ min: 2, max: 60 }) });
       db.run('UPDATE users SET name = ? WHERE id = ?', b.name, user!.id);
       return me(user!.id);
+    }
+  });
+
+  // ---------- Account recovery ----------
+  // The built-in wallet is tied to the account, not to the password: after a reset the wallet,
+  // certificates and records stay the same. In production the code is emailed; in the demo it is shown on screen.
+  const codeHash = (code: string) => createHash('sha256').update(`dal-reset|${code}`).digest('hex');
+  router.add({
+    method: 'POST', path: '/auth/recover', group: 'Account', summary: 'Start account recovery: a one-time code is sent to the email (the demo returns it in the response because email is not connected).',
+    body: '{ email }',
+    handler: ({ body }) => {
+      const b = parse<{ email: string }>(body, { email: str({ max: 120 }) });
+      const key = `recover:${b.email.toLowerCase()}`;
+      app.loginLimiter.check(key); app.loginLimiter.fail(key); // at most a few codes per window
+      const u = db.get('SELECT id FROM users WHERE email = ?', b.email.toLowerCase());
+      const out: Record<string, unknown> = { sent: true, expiresInMinutes: RULES.resetCodeMinutes };
+      if (u) {
+        const code = String(randomInt(0, 1e6)).padStart(6, '0'), now = new Date();
+        db.run('INSERT INTO password_resets (id, user_id, code_hash, created_at, expires_at) VALUES (?, ?, ?, ?, ?)', newId(), u.id, codeHash(code), now.toISOString(), new Date(now.getTime() + RULES.resetCodeMinutes * 60e3).toISOString());
+        if (app.exposeRecoveryCodes) out.demoCode = code;
+      }
+      return out; // same answer whether or not the email exists
+    }
+  });
+
+  router.add({
+    method: 'POST', path: '/auth/recover/confirm', group: 'Account', summary: 'Finish recovery with the code and a new password. Signs out every other device; the wallet and certificates are kept.',
+    body: '{ email, code, password (8+ chars) }',
+    handler: ({ body }) => {
+      const b = parse<{ email: string; code: string; password: string }>(body, { email: str({ max: 120 }), code: str({ pattern: /^\d{6}$/, patternMsg: 'Код — 6 цифр' }), password: str({ min: 8, max: 200, trim: false }) });
+      const u = db.get('SELECT id FROM users WHERE email = ?', b.email.toLowerCase());
+      const r = u && db.get(`SELECT * FROM password_resets WHERE user_id = ? AND used_at IS NULL AND expires_at > ? ORDER BY created_at DESC LIMIT 1`, u.id, nowIso());
+      if (!u || !r || r.attempts >= RULES.resetAttempts) throw new HttpError(400, 'bad_code', 'Код неверный или устарел. Запросите новый.');
+      if (r.code_hash !== codeHash(b.code)) {
+        db.run('UPDATE password_resets SET attempts = attempts + 1 WHERE id = ?', r.id);
+        throw new HttpError(400, 'bad_code', 'Код неверный или устарел. Запросите новый.');
+      }
+      db.tx(() => {
+        db.run('UPDATE password_resets SET used_at = ? WHERE id = ?', nowIso(), r.id);
+        db.run('UPDATE users SET password_hash = ? WHERE id = ?', hashPassword(b.password), u.id);
+        db.run('DELETE FROM sessions WHERE user_id = ?', u.id);
+      });
+      app.loginLimiter.reset(b.email.toLowerCase());
+      return { ...createSession(db, u.id), user: me(u.id) };
     }
   });
 }

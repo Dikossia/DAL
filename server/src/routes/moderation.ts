@@ -117,7 +117,10 @@ export function registerModeration(app: App) {
       if (f.deadline > localDate()) throw conflict('too_early', `Итог можно записать не раньше даты проверки (${f.deadline})`);
       const b = parse<{ closePrice: number }>(body, { closePrice: num({ gt: 0, max: 1e7 }) });
       const success = f.direction === 'up' ? b.closePrice >= f.target_price : b.closePrice <= f.target_price;
-      db.run('UPDATE forecasts SET status = ?, result_price = ?, resolved_at = ?, resolved_by = ? WHERE id = ?', success ? 'success' : 'miss', b.closePrice, nowIso(), user!.id, f.id);
+      db.tx(() => {
+        db.run('UPDATE forecasts SET status = ?, result_price = ?, resolved_at = ?, resolved_by = ? WHERE id = ?', success ? 'success' : 'miss', b.closePrice, nowIso(), user!.id, f.id);
+        app.chain.enqueue('forecast_result', f.id); // the outcome is recorded on Solana next to the terms
+      });
       return forecastView(db, db.get('SELECT * FROM forecasts WHERE id = ?', f.id));
     }
   });

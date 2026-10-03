@@ -1,7 +1,8 @@
 import type { DB, Row } from './db.ts';
 import type { User } from './http.ts';
 import { notFound, conflict } from './http.ts';
-import { PRODUCT_TYPES, PRODUCT_RULES, MODE_NAMES } from './rules.ts';
+import { PRODUCT_TYPES, PRODUCT_RULES, MODE_NAMES, RULES } from './rules.ts';
+import { newId } from './util.ts';
 import { coverUrl } from './courses.ts';
 import { expertBrief } from './experts.ts';
 
@@ -108,3 +109,41 @@ export function productChecklist(db: DB, p: Row) {
   return list;
 }
 export const isUrl = (s: string) => URL_RE.test(s);
+
+/** Grants access to a product (used by every payment method): first purchase, renewal or a new session package. */
+export function purchaseProduct(db: DB, userId: string, p: Row, o: { networkFee?: number; orderId?: string } = {}) {
+  const kind = kindOf(p), now = new Date(), at = now.toISOString(), commission = Math.round(p.price * RULES.commission);
+  const fee = o.networkFee ?? 0, orderId = o.orderId ?? null;
+  const renewal = (purchaseId: string) => db.run('INSERT INTO product_renewals (id, purchase_id, price_paid, commission, network_fee, order_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)', newId(), purchaseId, p.price, commission, fee, orderId, at);
+  return db.tx(() => {
+    const pu = db.get('SELECT * FROM product_purchases WHERE user_id = ? AND product_id = ?', userId, p.id);
+    if (kind === 'subscription') {
+      const base = pu && pu.status === 'active' && pu.expires_at > at ? new Date(pu.expires_at) : now;
+      const expires = new Date(base.getTime() + p.period_days * 864e5).toISOString();
+      if (pu?.status === 'active') {
+        // The payment is recorded as a separate row so income from the first purchase is not lost.
+        // While the subscription is active the period is extended; after it ends, a new period starts today.
+        const live = pu.expires_at > at;
+        db.run('UPDATE product_purchases SET expires_at = ? WHERE id = ?', expires, pu.id);
+        renewal(pu.id);
+        return { productId: p.id, renewed: live, expiresAt: expires };
+      }
+      if (pu) db.run(`UPDATE product_purchases SET status = 'active', price_paid = ?, commission = ?, network_fee = ?, order_id = ?, expires_at = ?, created_at = ?, refunded_at = NULL WHERE id = ?`, p.price, commission, fee, orderId, expires, at, pu.id);
+      else db.run('INSERT INTO product_purchases (id, user_id, product_id, price_paid, commission, network_fee, order_id, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', newId(), userId, p.id, p.price, commission, fee, orderId, expires, at);
+      return { productId: p.id, renewed: false, expiresAt: expires };
+    }
+    if (pu?.status === 'active') {
+      if (kind === 'sessions' && sessionsBooked(db, pu.id) >= pu.sessions_total) {
+        // Session package used up: buying a new package adds sessions.
+        db.run('UPDATE product_purchases SET sessions_total = sessions_total + ? WHERE id = ?', p.type === 'consultation' ? 1 : p.sessions, pu.id);
+        renewal(pu.id);
+        return { productId: p.id, renewed: true };
+      }
+      throw conflict('already_bought', kind === 'sessions' ? 'У вас уже есть неиспользованные встречи по этому продукту' : 'Этот материал уже у вас');
+    }
+    const sessions = kind === 'sessions' ? (p.type === 'consultation' ? 1 : p.sessions) : null;
+    if (pu) db.run(`UPDATE product_purchases SET status = 'active', price_paid = ?, commission = ?, network_fee = ?, order_id = ?, sessions_total = ?, created_at = ?, refunded_at = NULL WHERE id = ?`, p.price, commission, fee, orderId, sessions, at, pu.id);
+    else db.run('INSERT INTO product_purchases (id, user_id, product_id, price_paid, commission, network_fee, order_id, sessions_total, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)', newId(), userId, p.id, p.price, commission, fee, orderId, sessions, at);
+    return { productId: p.id, renewed: false };
+  });
+}

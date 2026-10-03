@@ -36,7 +36,7 @@ All accounts share one password: `dal-demo-2026`.
 | `npm start` | Starts the server |
 | `npm run dev` | Starts the server and restarts it when code changes |
 | `npm run reset` | **Deletes the database and uploaded files** and recreates the demo data |
-| `npm test` | Runs the automated tests: 42 scenarios covering roles and rules |
+| `npm test` | Runs the automated tests: 48 scenarios covering roles, rules and Solana flows |
 | `npm run moderator -- email password Name` | Creates another moderator |
 
 Settings (port, paths) are set in the `.env` file. See `.env.example` for a template.
@@ -52,7 +52,14 @@ Settings (port, paths) are set in the `.env` file. See `.env.example` for a temp
   - Ideas and reviews: free ones are open to everyone, paid ones show the first 400 characters before purchase.
   - Product reviews and complaints, product moderation, income from renewals.
 - **Teacher rating** per direction and overall — the arithmetic mean of the directions that have ratings. Expert social links (a link or @handle), profile photos for everyone, favorites in the account.
-- **Solana:** every forecast has a text record (memo) with its terms and the hash of its rationale; the expert anchors it with a Solana Devnet transaction via Phantom (`web/solana.js`), the server stores the transaction link (`POST /studio/forecasts/:id/anchor`), and anyone can verify it. A course review is anchored the same way: the memo holds the review id, course, rating and the SHA-256 of the text; the student signs it in Phantom (`POST /reviews/:id/anchor`, migration `004_reviews_chain.sql`).
+- **Solana under the hood** (`src/chain/`, migration `005_chain.sql`): records are queued in `chain_jobs` and written by a background worker with retries, so a Solana outage never blocks DAL. DAL's issuer wallet pays the fees; each account gets a built-in wallet on first use (encrypted, survives a password reset).
+  - Predictions: on `POST /studio/forecasts` the terms and the resolution rule are recorded automatically, co-signed by the expert's wallet; the outcome is recorded after `POST /moderation/forecasts/:id/resolve`. Network fee 5 ₸ per prediction, deducted from income.
+  - Certificates: issued when the last lesson is completed (`/me/certificates`, public `GET /certificates/:id`); a Metaplex Core NFT is minted to the student's wallet.
+  - Orders: `POST /checkout/quote` (price, commission, expert's share, network fee, total), `POST /orders` with `card` or `usdc` (one transaction split between the expert and DAL, checked on-chain via `POST /orders/:id/submit`), `GET /me/orders`.
+  - Wallet and recovery: `GET /me/wallet`, `POST /me/wallet/export` (password), `POST /auth/recover`, `POST /auth/recover/confirm`.
+  - Costs: `GET /moderation/chain` — fees collected vs. lamports actually spent, by record type.
+  - Settings: `DAL_SOLANA_CLUSTER`, `DAL_SOLANA_RPC`, `DAL_SOLANA_SECRET`, `DAL_WALLET_KEY`, `DAL_PUBLIC_URL`, `DAL_USDC_MINT`, `DAL_CHAIN=off`, `DAL_SHOW_RECOVERY_CODES=off`.
+- **Earlier Solana flows (Phantom):** every forecast has a text record (memo) with its terms and the hash of its rationale; the expert anchors it with a Solana Devnet transaction via Phantom (`web/solana.js`), the server stores the transaction link (`POST /studio/forecasts/:id/anchor`), and anyone can verify it. A course review is anchored the same way: the memo holds the review id, course, rating and the SHA-256 of the text; the student signs it in Phantom (`POST /reviews/:id/anchor`, migration `004_reviews_chain.sql`).
 - **Server in the browser:** all the code in `src/` is bundled into `../web/engine.js` (`node ../web/build.mjs`) and runs on the page with SQLite in WebAssembly — this is how the site works on Vercel without a server.
 - **Video:** upload as a file up to 4 GB (MP4, MOV, WEBM) with streaming writes to disk. Playback with seeking. Who can watch: free lessons — everyone, the rest — buyers, the author and the moderator.
 - **Expert dashboard:**
@@ -96,6 +103,11 @@ They match the "Rights" page in Dal Studio. The most important ones are also pro
 | Anchoring a forecast in Solana is done once and does not change | API + database trigger |
 | A course review — only after completing all lessons, one per course, its rating and text cannot be changed | API + unique constraint + database trigger |
 | Anchoring a review in Solana — only by its author, once, does not change | API + database trigger |
+| Solana records (queue rows) are final once confirmed; built-in wallets and issued certificates can't be changed or deleted | Database triggers |
+| A certificate is issued only after every lesson is completed | API |
+| Network fee: once per paid order that uses the blockchain (course or USDC), refunded with the course | API |
+| A USDC payment opens access only if the on-chain amounts and the order id match | Background check |
+| Recovery code: 6 digits, 30 minutes, 5 attempts, one use; signs out every device | API |
 | Lesson questions — only course students, the course expert and moderators | API |
 
 ## Structure

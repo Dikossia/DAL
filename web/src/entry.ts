@@ -13,12 +13,17 @@ import { registerStudioForecasts } from '../../server/src/routes/studio-forecast
 import { registerStudioOther } from '../../server/src/routes/studio-other.ts';
 import { registerModeration } from '../../server/src/routes/moderation.ts';
 import { registerProducts } from '../../server/src/routes/products.ts';
+import { registerBlockchain } from '../../server/src/routes/blockchain.ts';
+import { registerCertificateJobs } from '../../server/src/certificates.ts';
+import { registerPaymentJobs } from '../../server/src/orders.ts';
+import { createChain } from '../../server/src/chain/service.ts';
 import { vfs, hooks, setFile } from './shims/fs.ts';
 import { state } from './shims/sqlite.ts';
 import m001 from '../../server/migrations/001_init.sql';
 import m002 from '../../server/migrations/002_products.sql';
 import m003 from '../../server/migrations/003_solana.sql';
 import m004 from '../../server/migrations/004_reviews_chain.sql';
+import m005 from '../../server/migrations/005_chain.sql';
 
 const SEED_VIDEO = '/server/seed-assets/demo-lesson.mp4';
 const IDB = 'dal-browser', VERSION = 1;
@@ -51,6 +56,7 @@ export async function init(SQL: any) {
   vfs.set('/server/migrations/002_products.sql', m002);
   vfs.set('/server/migrations/003_solana.sql', m003);
   vfs.set('/server/migrations/004_reviews_chain.sql', m004);
+  vfs.set('/server/migrations/005_chain.sql', m005);
   const video = await fetch(SEED_VIDEO).then(r => r.ok ? r.blob() : new Blob([])).catch(() => new Blob([]));
   vfs.set(SEED_VIDEO, video);
 
@@ -62,9 +68,13 @@ export async function init(SQL: any) {
     vfs.set('/site/data.js', dal); vfs.set('/site/studio-data.js', studio);
     db.tx(() => seed(db, '/site', '/server/seed-assets'));
   }
-  app = { db, router: createRouter(), storageDir: '/storage', siteDir: '/site', seedDir: '/server/seed-assets', loginLimiter: createLoginLimiter() };
-  for (const reg of [registerAuth, registerCatalog, registerLearning, registerStudioCourses, registerStudioForecasts, registerStudioOther, registerModeration, registerProducts]) reg(app);
+  // Demo mode: DAL's devnet issuer wallet signs in the browser; on a real deployment this runs on the server.
+  const chain = createChain(db, { enabled: true, cluster: 'devnet', publicUrl: location.origin });
+  app = { db, router: createRouter(), storageDir: '/storage', siteDir: '/site', seedDir: '/server/seed-assets', loginLimiter: createLoginLimiter(), chain, exposeRecoveryCodes: true };
+  for (const reg of [registerAuth, registerCatalog, registerLearning, registerStudioCourses, registerStudioForecasts, registerStudioOther, registerModeration, registerProducts, registerBlockchain, registerCertificateJobs, registerPaymentJobs]) reg(app);
   await save();
+  // Background worker: writes queued records to Solana; the site never waits for it.
+  setInterval(async () => { try { if (await chain.tick()) await save(); } catch (e) { console.warn('Solana worker:', (e as any)?.message || e); } }, 5000);
 }
 
 async function save() { const bytes = state.current.export(); await tx(store, 'kv', 'readwrite', s => s.put(bytes, 'db')); }
