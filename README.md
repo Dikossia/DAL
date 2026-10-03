@@ -2,13 +2,13 @@
 
 **Dal** — a platform where investors and experts sell their educational, analytical, and consulting products, while students choose an expert based on a transparent history of their results. Expert forecasts are recorded on the **Solana** blockchain: an unsuccessful forecast cannot be rewritten retroactively, and anyone can verify it.
 
-> **Demo:** `VERCEL_LINK` — [opens in a browser, no installation required.](https://dal-kappa.vercel.app/)
+> **Live demo:** https://dal-kappa.vercel.app/?lang=en — opens in a browser, no installation required.
 > Login: `student@dal.local` (student), `aliya@dal.local` (expert), `moderator@dal.local` (moderator). Password for all accounts: `dal-demo-2026`.
-> Language: **EN / RU** button in the site header, or add `?lang=en` / `?lang=ru` to the URL. Русская версия README: [README.ru.md](README.ru.md).
+> Language: **EN / RU** button in the site header, or add `?lang=en` / `?lang=ru` to the URL. Russian README: [README.ru.md](README.ru.md).
 
 **TL;DR:** *Dal is a marketplace where investment experts sell courses, 1:1 consultations, paid clubs/chats and research notes. Every expert forecast can be anchored on Solana (devnet) via a Memo transaction signed in Phantom, so students can verify that the terms were never rewritten. The whole backend (Node.js + SQLite) also runs fully in the browser, so the live demo needs no server.*
 
-![Home](docs/screenshots/1-home.png)
+![Home](docs/screenshots/en/1-home.png)
 
 ## Problem
 
@@ -38,7 +38,7 @@ The forecast is the key feature that distinguishes an expert. Therefore, its ter
 
 The transaction is built manually, without libraries (`web/solana.js`), so no server is required for anchoring and verification. The blockchain confirms the immutability of the terms, but not the correctness of the forecast: the result is determined by the closing price on the verification date.
 
-![Forecast anchoring on Solana](docs/screenshots/6-solana-anchor.png)
+![Forecast anchoring on Solana](docs/screenshots/en/6-solana-anchor.png)
 
 **To try it:** install [Phantom](https://phantom.app), enable Devnet (Settings → Developer Settings → Testnet mode), and get test SOL from [faucet.solana.com](https://faucet.solana.com). Then log in as `aliya@dal.local` → Dal Studio → “Forecasts” → “Anchor on Solana”.
 
@@ -46,16 +46,16 @@ The transaction is built manually, without libraries (`web/solana.js`), so no se
 
 **Student** — catalog of all directions with horizontal shelves, search, purchases (payment is currently simulated), video lessons and progress tracking, consultation booking and cancellation, clubs with chat and renewal, paid-access ideas, reviews, refunds according to the rules, favorites, expert ratings, expert page with social media and ratings by direction, and Solana forecast verification.
 
-![Work with an Expert](docs/screenshots/2-experts.png)
-![Consultation booking](docs/screenshots/3-booking.png)
+![Work with an Expert](docs/screenshots/en/2-experts.png)
+![Consultation booking](docs/screenshots/en/3-booking.png)
 
 **Expert (Dal Studio)** — courses with video upload and a checklist before moderation; consultations, clubs, chats, ideas, and reviews (7 product types) with price, duration, meeting packages, subscription period, and access conditions; recurring weekly schedule slots and student bookings; club chat; forecasts with limits and Solana anchoring; students, reviews and replies, income with platform commission, profile with social media and photo; expert rights page.
 
-![Expert schedule](docs/screenshots/5-studio-schedule.png)
+![Expert schedule](docs/screenshots/en/5-studio-schedule.png)
 
 **Moderator** — course review (including video viewing) and product moderation before publication, complaints about reviews, changes to expert names and experience, expert verification, and forecast results.
 
-![Moderation](docs/screenshots/7-moderation.png)
+![Moderation](docs/screenshots/en/7-moderation.png)
 
 **Rules enforced by the server:**
 - a forecast cannot be modified or deleted, no more than 5 open forecasts, one open forecast per ticker;
@@ -112,7 +112,7 @@ After changing the server code, rebuild the browser version with `node web/build
 | `sw.js` | Serves videos, covers, and photos in “server in browser” mode |
 | `data.js` | Directions, categories, and demo content |
 | `Dal.html`, `Studio.html`, `demo/` | Early standalone mockups |
-| `docs/screenshots/` | Screenshots for the README |
+| `docs/screenshots/en/` | Screenshots for the README |
 
 ## What’s Next
 

@@ -34,7 +34,8 @@
   const fallback = s => s
     .replace(/(янв\.|февр\.|мар\.|апр\.|июн\.|июл\.|авг\.|сент\.|окт\.|нояб\.|дек\.|января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)/gi, m => MONTHS[m.toLowerCase()] || m)
     .replace(/(^|[\s,(])(понедельник|вторник|среда|четверг|пятница|суббота|воскресенье|пн|вт|ср|чт|пт|сб|вс)(?=[\s,]|$)/gi, (_, a, d) => a + (DAYS[d.toLowerCase()] || d))
-    .replace(/(\d) в (\d{1,2}:\d{2})/g, '$1, $2').replace(/\s?г\.$/, '');
+    .replace(/ в (\d{1,2}:\d{2})/g, ', $1').replace(/\s?г\.$/, '')
+    .replace(/\b(\d{1,2}) (January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\b( (\d{4}))?/g, (_, d, m, y, yy) => `${m} ${d}${yy ? ', ' + yy : ''}`);
   const cache = new Map();
   function tr(raw) {
     if (!raw || !CYR.test(raw)) return null;
@@ -53,6 +54,10 @@
       const m = /^(Меню|Открыть раздел|Профиль|Обложка|Ответ на отзыв|Удалить урок|Переместить урок) ?:? ?«?(.+?)»?$/.exec(t);
       const P = { 'Меню': 'Menu: ', 'Открыть раздел': 'Open ', 'Профиль': 'Profile: ', 'Обложка': 'Cover ', 'Ответ на отзыв': 'Reply to review: ', 'Удалить урок': 'Delete lesson ', 'Переместить урок': 'Move lesson ' };
       if (m && P[m[1]]) { const x = D[m[2]] ?? fallback(m[2]); out = P[m[1]] + x; }
+    }
+    if (out == null) {
+      const g = /^(Доброе утро|Добрый день|Добрый вечер), (.+)$/.exec(t);
+      if (g) out = { 'Доброе утро': 'Good morning', 'Добрый день': 'Good afternoon', 'Добрый вечер': 'Good evening' }[g[1]] + ', ' + (D[g[2]] ?? g[2]);
     }
     if (out == null) { const f = fallback(t); out = f !== t ? f : null; }
     cache.set(t, out);

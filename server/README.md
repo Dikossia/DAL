@@ -1,137 +1,139 @@
-# Dal: бэкенд
+# Dal: backend
 
-Сервер на Node.js и TypeScript **без внешних зависимостей**: `npm install` не нужен. База данных — SQLite, встроенная в Node.js. Она хранится одним файлом в `server/data`. Загруженные видео и обложки лежат в `server/storage`.
+Русская версия: [README.ru.md](README.ru.md)
 
-## Запуск на Windows
+A Node.js and TypeScript server with **no external dependencies**: no `npm install` needed. The database is SQLite, built into Node.js. It is stored as a single file in `server/data`. Uploaded videos and covers are in `server/storage`.
 
-1. Установите **Node.js 24 LTS** с [nodejs.org](https://nodejs.org). Подойдёт и Node.js 22.18 или новее.
-2. Откройте PowerShell в папке `server`:
+## Running on Windows
+
+1. Install **Node.js 24 LTS** from [nodejs.org](https://nodejs.org). Node.js 22.18 or newer also works.
+2. Open PowerShell in the `server` folder:
    ```powershell
    cd "$env:USERPROFILE\Desktop\DAL\server"
    npm start
    ```
-3. При первом запуске база создастся сама и заполнится демо-данными. Затем откройте:
-   - <http://localhost:4000/docs> — документация API;
-   - <http://localhost:4000/> — сайт для учеников;
+3. On first run the database is created and filled with demo data automatically. Then open:
+   - <http://localhost:4000/docs> — API documentation;
+   - <http://localhost:4000/> — the student site;
    - <http://localhost:4000/studio.html> — Dal Studio.
 
-Остановить сервер: `Ctrl+C`.
+To stop the server: `Ctrl+C`.
 
-### Демо-аккаунты
+### Demo accounts
 
-Пароль у всех один: `dal-demo-2026`.
+All accounts share one password: `dal-demo-2026`.
 
-| Роль | Почта | Кто |
+| Role | Email | Who |
 |---|---|---|
-| Модератор | `moderator@dal.local` | Модератор Dal |
-| Эксперт | `aliya@dal.local` | Алия Нурланова (её кабинет показан в Dal Studio) |
-| Эксперт | `arman@dal.local`, `timur@dal.local` | Арман Садыков, Тимур Ким |
-| Ученик | `student@dal.local` | Дарын Асылбек |
-| Ученики | `aruzhan@`, `madina@`, `daniyar@`… `@dal.local` | Ещё 11 учеников с покупками, прогрессом и отзывами |
+| Moderator | `moderator@dal.local` | Dal moderator |
+| Expert | `aliya@dal.local` | Aliya Nurlanova (her dashboard is shown in Dal Studio) |
+| Expert | `arman@dal.local`, `timur@dal.local` | Arman Sadykov, Timur Kim |
+| Student | `student@dal.local` | Daryn Asylbek |
+| Students | `aruzhan@`, `madina@`, `daniyar@`… `@dal.local` | 11 more students with purchases, progress and reviews |
 
-### Команды
+### Commands
 
-| Команда | Что делает |
+| Command | What it does |
 |---|---|
-| `npm start` | Запускает сервер |
-| `npm run dev` | Запускает и перезапускает при изменении кода |
-| `npm run reset` | **Удаляет базу и загруженные файлы** и создаёт демо-данные заново |
-| `npm test` | Прогоняет автотесты: 40 сценариев на роли и правила |
-| `npm run moderator -- почта пароль Имя` | Создаёт ещё одного модератора |
+| `npm start` | Starts the server |
+| `npm run dev` | Starts the server and restarts it when code changes |
+| `npm run reset` | **Deletes the database and uploaded files** and recreates the demo data |
+| `npm test` | Runs the automated tests: 40 scenarios covering roles and rules |
+| `npm run moderator -- email password Name` | Creates another moderator |
 
-Настройки (порт, пути) задаются в файле `.env`. Образец — `.env.example`.
+Settings (port, paths) are set in the `.env` file. See `.env.example` for a template.
 
-## Что умеет сервер
+## What the server does
 
-- **Вход и роли:** ученик, эксперт, модератор. Пароли хранятся как хеш scrypt, а в базе лежит только хеш токена входа. Подбор пароля ограничен: 10 ошибок за 15 минут.
-- **Каталог:** курсы с поиском, фильтром и сортировкой, страницы курсов, эксперты со статистикой, публичный журнал прогнозов.
-- **Ученик:** покупка без оплаты (цена фиксируется в момент покупки), уроки по порядку, прогресс, курс «в процессе», отзывы, возврат.
-- **Встречи, клубы, идеи (этап 2):** одна модель продукта для 7 типов из схемы.
-  - Консультации, занятия, сопровождение: пакет встреч, окна расписания эксперта, запись, отмена (ученик — за 24 часа, эксперт — всегда), ссылка на звонок только записавшимся, покупка нового пакета.
-  - Клубы и чаты: подписка на 30 дней (срок задаёт эксперт), продление прибавляет срок, после окончания — новая подписка с сегодняшнего дня; чат только для участников с действующей подпиской.
-  - Идеи и обзоры: бесплатные открыты всем, платные до покупки показывают первые 400 символов.
-  - Отзывы и жалобы на продукты, модерация продуктов, доход с продлениями.
-- **Рейтинг учителя** по каждому направлению и общий — среднее арифметическое направлений с оценками. Соцсети эксперта (ссылка или @ник), фото профиля у всех, избранное в аккаунте.
-- **Solana:** у каждого прогноза есть текст-запись (memo) с условиями и хешем обоснования; эксперт фиксирует его транзакцией в Solana Devnet через Phantom (`web/solana.js`), сервер хранит ссылку на транзакцию (`POST /studio/forecasts/:id/anchor`), проверить может любой.
-- **Сервер в браузере:** весь код из `src/` собирается в `../web/engine.js` (`node ../web/build.mjs`) и работает на странице с SQLite в WebAssembly — так сайт работает на Vercel без сервера.
-- **Видео:** загрузка файлом до 4 ГБ (MP4, MOV, WEBM) с потоковой записью на диск. Просмотр с перемоткой. Кто может смотреть: бесплатные уроки — все, остальные — купившие, автор и модератор.
-- **Кабинет эксперта:**
-  - курсы: черновик → модерация → каталог → скрыт;
-  - модули и уроки, обложки;
-  - прогнозы;
-  - ученики (без контактов);
-  - ответы на отзывы и жалобы;
-  - доход с комиссией;
-  - профиль.
-- **Модерация:**
-  - одобрение или возврат курсов с комментарием;
-  - жалобы на отзывы;
-  - изменения имени и стажа экспертов;
-  - подтверждение экспертов;
-  - итоги прогнозов.
+- **Login and roles:** student, expert, moderator. Passwords are stored as scrypt hashes, and the database holds only a hash of the login token. Password guessing is limited: 10 failures per 15 minutes.
+- **Catalog:** courses with search, filtering and sorting, course pages, experts with statistics, a public forecast journal.
+- **Student:** purchase without payment (the price is fixed at purchase time), lessons in order, progress, a course "in progress", reviews, refunds.
+- **Sessions, clubs, ideas (stage 2):** one product model for the 7 types in the schema.
+  - Consultations, classes, mentoring: a session package, the expert's schedule slots, booking, cancellation (student — 24 hours ahead, expert — any time), the call link only for those who booked, buying a new package.
+  - Clubs and chats: a 30-day subscription (the term is set by the expert), renewal adds to the term, after expiry a new subscription starts from today; the chat is for members with an active subscription only.
+  - Ideas and reviews: free ones are open to everyone, paid ones show the first 400 characters before purchase.
+  - Product reviews and complaints, product moderation, income from renewals.
+- **Teacher rating** per direction and overall — the arithmetic mean of the directions that have ratings. Expert social links (a link or @handle), profile photos for everyone, favorites in the account.
+- **Solana:** every forecast has a text record (memo) with its terms and the hash of its rationale; the expert anchors it with a Solana Devnet transaction via Phantom (`web/solana.js`), the server stores the transaction link (`POST /studio/forecasts/:id/anchor`), and anyone can verify it.
+- **Server in the browser:** all the code in `src/` is bundled into `../web/engine.js` (`node ../web/build.mjs`) and runs on the page with SQLite in WebAssembly — this is how the site works on Vercel without a server.
+- **Video:** upload as a file up to 4 GB (MP4, MOV, WEBM) with streaming writes to disk. Playback with seeking. Who can watch: free lessons — everyone, the rest — buyers, the author and the moderator.
+- **Expert dashboard:**
+  - courses: draft → moderation → catalog → hidden;
+  - modules and lessons, covers;
+  - forecasts;
+  - students (without contact details);
+  - replies to reviews and complaints;
+  - income after commission;
+  - profile.
+- **Moderation:**
+  - approving or returning courses with a comment;
+  - complaints about reviews;
+  - changes to experts' names and experience;
+  - expert verification;
+  - forecast outcomes.
 
-## Правила эксперта, которые охраняет сервер
+## Expert rules enforced by the server
 
-Они совпадают со страницей «Права» в Dal Studio. Самые важные защищены ещё и в самой базе данных: их не обойти даже в обход API.
+They match the "Rights" page in Dal Studio. The most important ones are also protected in the database itself: they cannot be bypassed even by going around the API.
 
-| Правило | Где охраняется |
+| Rule | Where it is enforced |
 |---|---|
-| Опубликованный прогноз нельзя изменить или удалить; итог выставляется один раз | API + триггеры базы |
-| Один открытый прогноз на тикер, не больше 5 открытых | API + уникальный индекс |
-| Курс, который купили, нельзя удалить | API + триггер базы |
-| Отзывы не удаляются (модерация только скрывает) | API + триггер базы |
-| Пока курс на модерации, он не редактируется | API |
-| Из опубликованного курса нельзя удалить урок или видео, можно только заменить | API |
-| Не больше 2 бесплатных уроков | API |
-| Продавать курсы и публиковать прогнозы — только подтверждённым экспертам | API |
-| Имя и стаж эксперта меняются только через модерацию | API |
-| Эксперт не видит почту и телефоны учеников | API |
-| Возврат курса — до 14 дней и если пройдено меньше 20% | API |
-| Возврат встреч — до 14 дней, пока ни одна не назначена; подписки и материалы не возвращаются | API |
-| Занятое окно расписания нельзя удалить, только отменить запись | API + триггер базы |
-| Ученик отменяет запись не позже чем за 24 часа | API |
-| Продукт, который купили, нельзя удалить | API + триггер базы |
-| Отзыв о продукте не удаляется | API + триггер базы |
-| Чат клуба — только участникам с действующей подпиской | API |
-| Фиксация прогноза в Solana делается один раз и не меняется | API + триггер базы |
+| A published forecast cannot be changed or deleted; the outcome is set once | API + database triggers |
+| One open forecast per ticker, at most 5 open forecasts | API + unique index |
+| A course that has been purchased cannot be deleted | API + database trigger |
+| Reviews are not deleted (moderation only hides them) | API + database trigger |
+| A course under moderation cannot be edited | API |
+| A lesson or video cannot be deleted from a published course, only replaced | API |
+| No more than 2 free lessons | API |
+| Only verified experts can sell courses and publish forecasts | API |
+| An expert's name and experience change only through moderation | API |
+| An expert cannot see students' email or phone numbers | API |
+| Course refund — within 14 days and if less than 20% is completed | API |
+| Sessions refund — within 14 days, while none is scheduled; subscriptions and materials are not refunded | API |
+| A booked schedule slot cannot be deleted, only the booking cancelled | API + database trigger |
+| A student cancels a booking no later than 24 hours ahead | API |
+| A product that has been purchased cannot be deleted | API + database trigger |
+| A product review is not deleted | API + database trigger |
+| A club chat is for members with an active subscription only | API |
+| Anchoring a forecast in Solana is done once and does not change | API + database trigger |
 
-## Устройство
+## Structure
 
 ```
 server/
-  bin/dal.mjs          запуск: проверка версии Node.js, чтение .env
-  src/cli.ts           команды start / reset / moderator
-  src/app.ts           сборка приложения, понятные ошибки базы
-  src/http.ts          маршрутизатор, JSON, загрузка и отдача файлов с Range
-  src/db.ts            SQLite и миграции
-  src/auth.ts          пароли, токены, ограничение попыток входа
-  src/validate.ts      проверка входных данных
-  src/rules.ts         все лимиты платформы в одном месте
-  src/courses.ts       общая логика курсов и доступа
-  src/products.ts      консультации, клубы, идеи: доступ, чек-лист, карточки
-  src/experts.ts       рейтинги учителя по направлениям, фото
-  src/routes/          маршруты API по разделам
-  src/seed.ts          демо-данные (берутся из ../data.js и ../studio-data.js)
-  migrations/          схема базы
-  tests/               автотесты
-  seed-assets/         демонстрационное видео для уроков из демо-данных
+  bin/dal.mjs          launch: Node.js version check, reading .env
+  src/cli.ts           start / reset / moderator commands
+  src/app.ts           application assembly, readable database errors
+  src/http.ts          router, JSON, file upload and serving with Range
+  src/db.ts            SQLite and migrations
+  src/auth.ts          passwords, tokens, login attempt limiting
+  src/validate.ts      input validation
+  src/rules.ts         all platform limits in one place
+  src/courses.ts       shared course and access logic
+  src/products.ts      consultations, clubs, ideas: access, checklist, cards
+  src/experts.ts       teacher ratings by direction, photos
+  src/routes/          API routes by section
+  src/seed.ts          demo data (taken from ../data.js and ../studio-data.js)
+  migrations/          database schema
+  tests/               automated tests
+  seed-assets/         demo video for lessons from the demo data
 ```
 
-## Сайты
+## Sites
 
-Сервер раздаёт сайты из папки `DAL`, и они работают через API:
+The server serves the sites from the `DAL` folder, and they work through the API:
 
-- `/` — сайт для учеников: все четыре направления, покупка, уроки, запись на встречи, чаты клубов, идеи, отзывы, возврат, рейтинг, прогнозы, избранное.
-- `/login.html` — вход и регистрация (ученик или эксперт).
-- `/studio.html` — для эксперта Dal Studio (курсы, встречи, клубы и идеи, прогнозы, ученики, отзывы, доход, профиль); для модератора — очередь модерации.
+- `/` — the student site: all four directions, purchase, lessons, booking sessions, club chats, ideas, reviews, refunds, rating, forecasts, favorites.
+- `/login.html` — login and sign-up (student or expert).
+- `/studio.html` — Dal Studio for experts (courses, sessions, clubs and ideas, forecasts, students, reviews, income, profile); for moderators — the moderation queue.
 
-После обновления кода новая схема базы применяется сама при `npm start`. Чтобы увидеть новые демо-консультации, клубы и идеи, выполните `npm run reset` (это удалит ваши тестовые данные).
+After a code update, the new database schema is applied automatically on `npm start`. To see the new demo consultations, clubs and ideas, run `npm run reset` (this deletes your test data).
 
-## Что дальше
+## What's next
 
-- **Уведомления.** Письма или Telegram о записи, отмене и новых сообщениях в клубе.
-- **Описание учителя от ИИ.** Нужен ключ Claude API.
-- **Оплата и выплаты.** Покупка пока проходит без списания денег.
-- **Источник котировок.** Нужен для автоматических итогов прогнозов; сейчас цену закрытия вносит модератор.
-- **Переезд на PostgreSQL.** Понадобится при переносе на сервер. Схема в `migrations/` написана так, чтобы перенос был механическим: что меняется, описано в комментарии в начале файла.
-- **Видео.** На сервере стоит хранить их в облачном хранилище (S3-совместимом) и перекодировать для потоковой отдачи.
+- **Notifications.** Email or Telegram about bookings, cancellations and new club messages.
+- **AI teacher description.** Requires a Claude API key.
+- **Payments and payouts.** Purchases currently go through without charging money.
+- **Quote source.** Needed for automatic forecast outcomes; for now the moderator enters the closing price.
+- **Migration to PostgreSQL.** Will be needed when moving to a server. The schema in `migrations/` is written so that the move is mechanical: what changes is described in a comment at the top of the file.
+- **Video.** On a server, it is better to store videos in cloud storage (S3-compatible) and transcode them for streaming.
