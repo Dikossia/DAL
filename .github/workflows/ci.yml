@@ -1,20 +1,20 @@
-   name: CI
+name: CI
 
-   on:
-     push:
-     pull_request:
+on:
+  push:
+  pull_request:
 
-   jobs:
-     test:
-       runs-on: ubuntu-latest
-       steps:
-         - uses: actions/checkout@v4
-         - uses: actions/setup-node@v4
-           with:
-             node-version: 24
-         - name: Server tests
-           working-directory: server
-           run: npm test
-         - name: Frontend syntax check
-           run: |
-             for f in app.js studio.js api.js login.js sw.js web/solana.js web/i18n.js web/i18n-en.js web/dal-local.js; do node --check "$f"; done
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Server tests
+        working-directory: server
+        run: npm test
+      - name: Frontend syntax check
+        run: |
+          for f in app.js studio.js api.js login.js sw.js verify.js web/solana.js web/certificate.js web/i18n.js web/i18n-en.js web/dal-local.js; do node --check "$f"; done
