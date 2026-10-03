@@ -3,11 +3,11 @@
 (() => {
   'use strict';
   const KEY = 'dal-lang';
-  let lang = 'ru';
+  let lang = 'en';
   try {
     const q = new URLSearchParams(location.search).get('lang');
     if (q === 'en' || q === 'ru') localStorage.setItem(KEY, q);
-    lang = localStorage.getItem(KEY) || ((navigator.languages || [navigator.language]).some(l => /^(ru|kk)/i.test(l)) ? 'ru' : 'en');
+    lang = localStorage.getItem(KEY) || 'en';  // по умолчанию английский; русский — кнопкой RU или ?lang=ru
   } catch (_) { /* хранилище недоступно */ }
   const set = l => { try { localStorage.setItem(KEY, l); } catch (_) { /* ничего */ } location.reload(); };
   window.DalLang = { lang, set };
