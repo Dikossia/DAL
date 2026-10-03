@@ -12,3 +12,14 @@ export function forecastAnchor(db: DB, id: string) {
   const a = db.get('SELECT * FROM forecast_anchors WHERE forecast_id = ?', id);
   return a ? { cluster: a.cluster, signature: a.signature, wallet: a.wallet, createdAt: a.created_at, explorerUrl: `https://explorer.solana.com/tx/${a.signature}${a.cluster === 'devnet' ? '?cluster=devnet' : ''}` } : null;
 }
+
+// Запись отзыва о курсе для блокчейна: автор (обезличенный id), курс, оценка и хеш текста.
+export function reviewMemo(r: any): string {
+  const h = createHash('sha256').update(String(r.text)).digest('hex');
+  return `DAL review v1 | id=${r.id} | course=${r.course_id} | rating=${r.rating} | completed=true | created=${r.created_at} | text_sha256=${h}`;
+}
+
+export function reviewAnchor(db: DB, id: string) {
+  const a = db.get('SELECT * FROM review_anchors WHERE review_id = ?', id);
+  return a ? { cluster: a.cluster, signature: a.signature, wallet: a.wallet, createdAt: a.created_at, explorerUrl: `https://explorer.solana.com/tx/${a.signature}${a.cluster === 'devnet' ? '?cluster=devnet' : ''}` } : null;
+}

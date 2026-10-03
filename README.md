@@ -38,13 +38,23 @@ The forecast is the key feature that distinguishes an expert. Therefore, its ter
 
 The transaction is built manually, without libraries (`web/solana.js`), so no server is required for anchoring and verification. The blockchain confirms the immutability of the terms, but not the correctness of the forecast: the result is determined by the closing price on the verification date.
 
+**Course reviews are anchored the same way.** A student can rate a course only after completing all of its lessons, and only once: the review cannot be edited or deleted (database triggers). The author can press **“Anchor on Solana”** under their review: the Memo transaction holds the review id, course, rating and the SHA-256 of the text (the text itself stays off-chain), signed by the student in Phantom. Everyone sees **“Anchored on Solana · verify”** next to the review. Ordinary questions and comments live separately, under each lesson video, where the expert answers them.
+
 ![Forecast anchoring on Solana](docs/screenshots/en/6-solana-anchor.png)
 
-**To try it:** install [Phantom](https://phantom.app), enable Devnet (Settings → Developer Settings → Testnet mode), and get test SOL from [faucet.solana.com](https://faucet.solana.com). Then log in as `aliya@dal.local` → Dal Studio → “Forecasts” → “Anchor on Solana”.
+**To try it:** install [Phantom](https://phantom.app), enable Devnet (Settings → Developer Settings → Testnet mode), and get test SOL from [faucet.solana.com](https://faucet.solana.com). Then log in as `aliya@dal.local` → Dal Studio → “Forecasts” → “Anchor on Solana”. For a review: log in as `student@dal.local` → course “Portfolio in practice: open review” (already completed in the demo data) → “Leave a review” → “Anchor on Solana”.
+
+## Wallet connection (Phantom)
+
+- **"Connect wallet"** button in the header of the student site and Dal Studio. It connects Phantom and shows the address, the Solana Devnet balance, a **"Get 1 test SOL"** airdrop button and a link to Solana Explorer.
+- Experts use the same wallet to sign forecast anchoring transactions: **Dal Studio → Forecasts → "Anchor on Solana"**. Students sign their course review: **course page → your review → "Anchor on Solana"**.
+- Where it lives in the code:
+  - `web/solana.js`: `connect()` (Phantom provider), `anchor()` (builds a Memo transaction and calls `signAndSendTransaction`), `verify()` (reads the transaction via public Devnet RPC `getTransaction`), and the header wallet button at the end of the file;
+  - server side: `server/src/anchor.ts`, endpoints `POST /studio/forecasts/:id/anchor` and `POST /reviews/:id/anchor`, migrations `server/migrations/003_solana.sql` and `004_reviews_chain.sql`, tests `server/tests/anchor.test.ts` and `server/tests/learning.test.ts`.
 
 ## What Already Works
 
-**Student** — catalog of all directions with horizontal shelves, search, purchases (payment is currently simulated), video lessons and progress tracking, consultation booking and cancellation, clubs with chat and renewal, paid-access ideas, reviews, refunds according to the rules, favorites, expert ratings, expert page with social media and ratings by direction, and Solana forecast verification.
+**Student** — catalog of all directions with horizontal shelves, search, purchases (payment is currently simulated), video lessons and progress tracking, questions and comments under each lesson with expert answers, consultation booking and cancellation, clubs with chat and renewal, paid-access ideas, reviews, refunds according to the rules, favorites, expert ratings, expert page with social media and ratings by direction, and Solana forecast verification.
 
 ![Work with an Expert](docs/screenshots/en/2-experts.png)
 ![Consultation booking](docs/screenshots/en/3-booking.png)
@@ -60,6 +70,7 @@ The transaction is built manually, without libraries (`web/solana.js`), so no se
 **Rules enforced by the server:**
 - a forecast cannot be modified or deleted, no more than 5 open forecasts, one open forecast per ticker;
 - a purchased course or product cannot be deleted, only hidden;
+- a course review can be left only after completing all lessons, once per course; its rating and text cannot be changed, and it can be anchored on Solana by its author;
 - a review cannot be deleted, only hidden by a moderator after a complaint;
 - a booked schedule slot cannot be deleted;
 - course refunds are available within 14 days if less than 20% has been completed; meeting refunds are available within 14 days as long as no meeting has been scheduled;
@@ -75,10 +86,10 @@ Student website (index.html, app.js)   Dal Studio (studio.html, studio.js)   Log
                      \
                       ── “server in browser” mode ──> web/engine.js: same server code + SQLite (WebAssembly)
                                                       data in IndexedDB, videos and images via sw.js
-web/solana.js ──> Phantom (signature) ──> Solana Devnet: Memo transaction with forecast terms
+web/solana.js ──> Phantom (signature) ──> Solana Devnet: Memo transaction with forecast terms or a course review
 ```
 
-- **Server** — Node.js + TypeScript with no external dependencies, built-in SQLite, 40 automated tests (`server/`, details in `server/README.md`).
+- **Server** — Node.js + TypeScript with no external dependencies, built-in SQLite, 42 automated tests (`server/`, details in `server/README.md`).
 - **“Server in browser” mode** — for the Vercel demo. Server code from `server/src` is bundled into `web/engine.js`, the database runs through [sql.js](https://github.com/sql-js/sql.js) (SQLite in WebAssembly, MIT). It activates automatically if the site is opened somewhere other than `localhost`. Data is stored in the reviewer’s browser; the “Reset Data” button restores the demo dataset.
 - **Frontend** — HTML, CSS, and JavaScript without frameworks, responsive layout, light and dark themes, Russian and English versions (`web/i18n.js`, `web/i18n-en.js`).
 

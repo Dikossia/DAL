@@ -43,7 +43,7 @@
 
   // ---------- Данные с сервера ----------
   let me = null, catalog = [], products = [], experts = [], forecasts = [];
-  let learning = { courses: [], inProgress: null }, mine = [], favs = new Set();
+  let learning = { courses: [], inProgress: null }, mine = [], favs = new Set(), shownReviews = [], solWallet = '';
   let offline = false;
   async function loadBase() {
     try {
@@ -230,14 +230,20 @@
     return o.kind === 'course' ? courseView(id) : offerView(id);
   }
 
-  const reviewsBlock = (list, value, count, canReview, id, kind) => `<section class="detail-section"><div class="section-head" style="margin-top:0"><h2>Отзывы учеников</h2>${rating(value, count)}</div>${list.length ? list.map(r => `<article class="review-item"><div class="review-top"><span class="user-avatar">${esc(r.author[0])}</span><strong>${esc(r.author)}</strong>${rating(r.rating)}</div><p>${esc(r.text)}</p>${r.reply ? `<div class="review-reply"><span class="tiny-meta">Ответ эксперта</span><p>${esc(r.reply)}</p></div>` : ''}</article>`).join('') : '<p class="subtitle">Отзывов пока нет.</p>'}${canReview ? `<button class="btn secondary" data-action="review" data-id="${id}" data-kind="${kind}">${icon('message-square')}Оставить отзыв</button>` : ''}</section>`;
-  const myReviewIn = list => me && list.some(r => r.author === me.name.split(' ')[0]);
+  // Отзыв о курсе фиксируется в Solana: автор подписывает запись своим кошельком, отметку может проверить любой.
+  const reviewChain = r => r.anchor ? `<button class="chain-badge" data-action="verify-review" data-id="${r.id}" title="Проверить запись в блокчейне">${icon('link-2')}Зафиксирован в Solana · проверить</button>`
+    : r.mine && r.memo ? `<button class="btn secondary small-btn" data-action="anchor-review" data-id="${r.id}">${icon('link-2')}Зафиксировать в Solana</button>` : '';
+  const reviewsBlock = (list, value, count, canReview, id, kind, note = '') => { shownReviews = list; return `<section class="detail-section"><div class="section-head" style="margin-top:0"><h2>Отзывы учеников</h2>${rating(value, count)}</div>${list.length ? list.map(r => `<article class="review-item"><div class="review-top"><span class="user-avatar">${esc(r.author[0])}</span><strong>${esc(r.author)}</strong>${r.mine ? '<span class="badge">Ваш отзыв</span>' : ''}${rating(r.rating)}</div><p>${esc(r.text)}</p>${reviewChain(r)}${r.reply ? `<div class="review-reply"><span class="tiny-meta">Ответ эксперта</span><p>${esc(r.reply)}</p></div>` : ''}</article>`).join('') : '<p class="subtitle">Отзывов пока нет.</p>'}${canReview ? `<button class="btn secondary" data-action="review" data-id="${id}" data-kind="${kind}">${icon('message-square')}Оставить отзыв</button>` : note}</section>`; };
+  const myReviewIn = list => me && list.some(r => r.mine || (r.mine === undefined && r.author === me.name.split(' ')[0]));
 
   async function courseView(id) {
     const own = ownsCourse(id);
     let c, reviews = [];
     try { [c, reviews] = await Promise.all([api.get(`/catalog/courses/${id}`), api.get(`/catalog/courses/${id}/reviews`)]); }
     catch (e) { if (e.status === 404 && own) c = await api.get(`/learning/courses/${id}`); else throw e; }
+    const progress = own ? (c.progress || learning.courses.find(x => x.id === id)?.progress) : null;
+    const completed = !!progress && progress.total > 0 && progress.done >= progress.total;
+    const reviewNote = own && !myReviewIn(reviews) && !completed && progress ? `<p class="notice">${icon('lock')} Отзыв можно оставить после прохождения курса: пройдено ${progress.done} из ${progress.total} уроков. Вопросы по урокам задавайте под видео.</p>` : '';
     const m = findMode('courses'), cat = m.categories.find(x => x.id === c.category);
     const lessons = c.modules.flatMap(x => x.lessons);
     let panel;
@@ -248,7 +254,7 @@
     return `${breadcrumb([[m.name, '#mode/courses'], [cat?.name || 'Курс', `#category/courses/${c.category}`], [c.title]])}<div class="detail-grid"><div class="detail-content"><span class="badge">${esc(c.categoryName)}</span><h1>${esc(c.title)}</h1>${expertLink(c.expert)}${cover(c.coverUrl, c.title, 'detail-cover')}
       <section class="detail-section"><h2>О программе</h2><p>${esc(c.description)}</p></section>
       <section class="detail-section program"><h2>Программа обучения</h2>${c.modules.map(mod => `<h3 class="module-heading">${esc(mod.title)}</h3><ol class="program-list">${mod.lessons.map(l => `<li><span class="program-title">${esc(l.title)}</span><span class="program-meta">${l.duration ? clock(l.duration) : ''}${l.isFree ? `<span class="badge">Бесплатно</span>` : ''}${l.isFree && l.videoUrl && !own ? `<button class="text-link" data-action="preview" data-src="${esc(l.videoUrl)}" data-title="${esc(l.title)}">${icon('play')}Смотреть</button>` : ''}</span></li>`).join('')}</ol>`).join('')}</section>
-      ${reviewsBlock(reviews, c.rating, c.reviews, own && !myReviewIn(reviews), id, 'course')}
+      ${reviewsBlock(reviews, c.rating, c.reviews, own && completed && !myReviewIn(reviews), id, 'course', reviewNote)}
     </div><aside class="purchase-panel"><span class="tiny-meta">Курсы</span><div class="purchase-price">${money(c.price)}</div><p class="purchase-caption">${own ? 'Курс уже у вас' : 'За полный доступ'}</p>${panel}${saveButton(id)}<ul class="purchase-features"><li>${icon('play')}${lessons.length} ${plural(lessons.length, 'урок', 'урока', 'уроков')}${c.duration ? ` · ${fmtTime(c.duration)}` : ''}</li><li>${icon('users-round')}${c.students} ${plural(c.students, 'ученик', 'ученика', 'учеников')}</li><li>${icon('undo-2')}Возврат 14 дней, если пройдено меньше 20%</li></ul><p class="fine-print">Оплата пока не подключена: доступ открывается без списания денег. Доходность инвестиций не гарантируется.</p></aside></div>`;
   }
 
@@ -356,11 +362,15 @@
     let index = all.findIndex(l => l.id === lessonId);
     if (index < 0) index = firstOpen < 0 ? all.length - 1 : firstOpen;
     const l = all[index], blocked = all.slice(0, index).some(x => !x.completed);
+    const comments = await api.get(`/lessons/${l.id}/comments`).catch(() => null);
     const action = me.role !== 'student' ? '' : l.completed
       ? `<button class="btn secondary" disabled>${icon('circle-check')}Урок пройден</button>${index < all.length - 1 ? `<a class="btn" href="#lesson/${courseId}/${all[index + 1].id}">Следующий урок${icon('arrow-right')}</a>` : ''}`
       : blocked ? `<button class="btn" disabled>${icon('lock')}Сначала завершите предыдущие</button>` : `<button class="btn" data-action="complete-lesson" data-id="${l.id}" data-course="${courseId}">${icon('check')}Завершить урок</button>`;
-    return `${breadcrumb([['Моё обучение', '#learning'], [c.title, `#product/${courseId}`]])}<div class="lesson-layout"><article class="lesson-article"><span class="eyebrow">УРОК ${index + 1} ИЗ ${all.length} · ${esc(l.module)}</span><h1>${esc(l.title)}</h1>${l.videoUrl ? `<video class="lesson-video" controls playsinline preload="metadata" src="${esc(api.mediaUrl(l.videoUrl))}"></video>` : `<div class="lesson-novideo">${icon('film')}<p>Видео к этому уроку ещё не загружено.</p></div>`}<div class="lesson-actions">${action}<span class="fine-print">${c.progress.done} из ${c.progress.total} завершено · ${c.progress.percent}%</span></div></article><aside class="lesson-list"><h2>Программа курса</h2>${c.modules.map(m => `<p class="lesson-module">${esc(m.title)}</p>${m.lessons.map(x => { const i = all.findIndex(y => y.id === x.id); return `<a class="lesson-item ${i === index ? 'active' : ''}" href="#lesson/${courseId}/${x.id}">${icon(x.completed ? 'circle-check' : i === index ? 'circle-play' : 'circle')}<span>${i + 1}. ${esc(x.title)}</span></a>`; }).join('')}`).join('')}</aside></div>`;
+    return `${breadcrumb([['Моё обучение', '#learning'], [c.title, `#product/${courseId}`]])}<div class="lesson-layout"><article class="lesson-article"><span class="eyebrow">УРОК ${index + 1} ИЗ ${all.length} · ${esc(l.module)}</span><h1>${esc(l.title)}</h1>${l.videoUrl ? `<video class="lesson-video" controls playsinline preload="metadata" src="${esc(api.mediaUrl(l.videoUrl))}"></video>` : `<div class="lesson-novideo">${icon('film')}<p>Видео к этому уроку ещё не загружено.</p></div>`}<div class="lesson-actions">${action}<span class="fine-print">${c.progress.done} из ${c.progress.total} завершено · ${c.progress.percent}%</span></div>${me.role === 'student' && c.progress.total && c.progress.done >= c.progress.total ? `<p class="notice">${icon('star')} Курс пройден. <a class="text-link" href="#product/${courseId}">Оставьте отзыв</a>: он будет единственным и неизменяемым, его можно зафиксировать в Solana.</p>` : ''}${comments ? commentsBlock(comments, l.id) : ''}</article><aside class="lesson-list"><h2>Программа курса</h2>${c.modules.map(m => `<p class="lesson-module">${esc(m.title)}</p>${m.lessons.map(x => { const i = all.findIndex(y => y.id === x.id); return `<a class="lesson-item ${i === index ? 'active' : ''}" href="#lesson/${courseId}/${x.id}">${icon(x.completed ? 'circle-check' : i === index ? 'circle-play' : 'circle')}<span>${i + 1}. ${esc(x.title)}</span></a>`; }).join('')}`).join('')}</aside></div>`;
   }
+
+  const commentItem = x => `<article class="comment-item ${x.role === 'expert' ? 'expert' : ''}" id="cm-${x.id}"><div class="review-top"><span class="user-avatar">${esc(x.author[0])}</span><strong>${esc(x.author)}</strong>${x.role === 'expert' ? '<span class="badge">Эксперт</span>' : x.role === 'moderator' ? '<span class="badge">Модератор</span>' : ''}<span class="tiny-meta">${fmtDate(x.createdAt)}</span>${x.canDelete ? `<button class="icon-button comment-del" data-action="delete-comment" data-id="${x.id}" title="Удалить" aria-label="Удалить">${icon('trash-2')}</button>` : ''}</div><p>${esc(x.text)}</p></article>`;
+  const commentsBlock = (list, lessonId) => `<section class="lesson-comments"><h2>Вопросы и обсуждение <span class="tiny-meta">${list.length}</span></h2><div id="commentList">${list.length ? list.map(commentItem).join('') : '<p class="subtitle" id="noComments">Пока нет вопросов. Спросите первым: эксперт отвечает здесь же.</p>'}</div><form id="commentForm" class="comment-form" data-lesson="${lessonId}"><textarea name="text" rows="2" maxlength="1000" required placeholder="Задайте вопрос по уроку или поделитесь мыслью"></textarea><button class="btn" type="submit">${icon('send')}Отправить</button></form><p class="fine-print">Обсуждение видят ученики курса и эксперт. Отзыв о курсе — отдельно, после прохождения всех уроков.</p></section>`;
 
   const RANK_TABS = [['all', 'Общий'], ...modes.map(m => [m.id, m.name]), ['signals', 'Прогнозы']];
   function rankingsView() {
@@ -533,17 +543,23 @@
 
   // Проверка прогноза в блокчейне: читаем транзакцию Solana и сравниваем записанные условия с теми, что на сайте.
   const memoBlock = m => `<pre class="memo">${esc(m)}</pre>`;
-  async function verifyAnchor(f) {
-    openDialog(`${esc(f.ticker)}: проверка в Solana`, `<p class="modal-text" id="verifyWait">Читаем транзакцию из публичного узла Solana…</p>`, 'wide');
+  async function verifyAnchor(f, review = false) {
+    const t = review
+      ? { title: 'Отзыв: проверка в Solana', ok: 'Отзыв не менялся с момента записи в блокчейн', bad: 'Отзыв на сайте не совпадает с записью в блокчейне', who: 'кошелёк автора', site: 'Запись отзыва на сайте', fine: 'Блокчейн подтверждает, что оценка и текст отзыва не менялись после публикации. Отзыв на Dal можно оставить только один раз и только после прохождения всего курса.' }
+      : { title: `${esc(f.ticker)}: проверка в Solana`, ok: 'Условия не менялись с момента записи в блокчейн', bad: 'Условия на сайте не совпадают с записью в блокчейне', who: 'кошелёк эксперта', site: 'Условия на сайте', fine: 'Блокчейн подтверждает, что условия зафиксированы до срока проверки и не переписаны. Он не гарантирует, что прогноз верный.' };
+    openDialog(t.title, `<p class="modal-text" id="verifyWait">Читаем транзакцию из публичного узла Solana…</p>`, 'wide');
     let r;
     try { r = await window.DalSolana.verify(f.anchor.signature, f.memo); } catch (e) { r = { error: e.message }; }
-    const body = r.error ? `<div class="notice">Узел Solana не ответил: ${esc(r.error)}. Проверьте по ссылке ниже.</div>`
+    const body = r.error ? `<div class="notice"><span>Узел Solana не ответил:</span> ${esc(r.error)}. <span>Проверьте по ссылке ниже.</span></div>`
       : !r.found ? '<div class="notice">Транзакция пока не найдена в сети. Если её отправили только что, подождите минуту.</div>'
-      : r.ok ? `<div class="verify ok">${icon('shield-check')}<span><strong>Условия не менялись с момента записи в блокчейн</strong><small>Записано ${esc(fmtDate(r.blockTime))} · блок ${nf.format(r.slot)} · кошелёк эксперта ${esc(r.signer.slice(0, 4))}…${esc(r.signer.slice(-4))}</small></span></div>`
-      : `<div class="verify bad">${icon('shield-alert')}<span><strong>Условия на сайте не совпадают с записью в блокчейне</strong><small>В блокчейне записано:</small></span></div>${memoBlock(r.memo)}`;
+      : r.ok ? `<div class="verify ok">${icon('shield-check')}<span><strong>${t.ok}</strong><small><span>Записано</span> <span>${esc(fmtDate(r.blockTime))}</span> · <span>блок</span> ${nf.format(r.slot)} · <span>${t.who}</span> ${esc(r.signer.slice(0, 4))}…${esc(r.signer.slice(-4))}</small></span></div>`
+      : `<div class="verify bad">${icon('shield-alert')}<span><strong>${t.bad}</strong><small>В блокчейне записано:</small></span></div>${memoBlock(r.memo)}`;
     $('#verifyWait')?.remove();
-    modal.insertAdjacentHTML('beforeend', `${body}<h3 class="modal-sub">Условия на сайте</h3>${memoBlock(f.memo)}<a class="text-link" href="${esc(f.anchor.explorerUrl)}" target="_blank" rel="noopener">${icon('external-link')}Открыть транзакцию в Solana Explorer</a><p class="fine-print">Блокчейн подтверждает, что условия зафиксированы до срока проверки и не переписаны. Он не гарантирует, что прогноз верный.</p>`);
+    modal.insertAdjacentHTML('beforeend', `${body}<h3 class="modal-sub">${t.site}</h3>${memoBlock(f.memo)}<a class="text-link" href="${esc(f.anchor.explorerUrl)}" target="_blank" rel="noopener">${icon('external-link')}Открыть транзакцию в Solana Explorer</a><p class="fine-print">${t.fine}</p>`);
     icons();
+  }
+  function anchorReviewDialog(r, note = '') {
+    openDialog('Зафиксировать отзыв в Solana', `<p class="modal-text">Оценка, курс и отпечаток (SHA-256) текста отзыва будут записаны в публичный блокчейн Solana (сеть Devnet) транзакцией из вашего кошелька Phantom. Любой сможет сверить отзыв на сайте с записью в блокчейне: изменить его задним числом станет невозможно.</p>${memoBlock(r.memo)}${note}<p class="fine-print">Нужен кошелёк Phantom с включённой сетью Devnet (Настройки → Developer Settings → Testnet mode). Комиссия — доли тестового SOL. Сам текст в блокчейн не попадает, только его отпечаток.</p><div class="modal-actions"><button class="btn secondary" data-action="close-modal">Отмена</button><button class="btn" data-action="anchor-review-go" data-id="${r.id}">${icon('wallet')}Подключить Phantom и записать</button></div>`, 'wide');
   }
   function closeProfile() { $('#profileMenu').hidden = true; $('.user-trigger').setAttribute('aria-expanded', 'false'); }
   function toggleProfile() {
@@ -653,6 +669,24 @@
       case 'rank-link': rankMode = id; break;
       case 'signal-filter': signalFilter = id; render(); break;
       case 'verify-anchor': verifyAnchor(forecasts.find(x => x.id === id)); break;
+      case 'verify-review': verifyAnchor(shownReviews.find(x => x.id === id), true); break;
+      case 'anchor-review': anchorReviewDialog(shownReviews.find(x => x.id === id)); break;
+      case 'sol-airdrop': guard(async () => { await window.DalSolana.airdrop(solWallet); toast('Запрошен 1 тестовый SOL. Через несколько секунд нажмите «Записать» ещё раз.'); }, button); break;
+      case 'anchor-review-go': guard(async () => {
+        const r = shownReviews.find(x => x.id === id);
+        try {
+          solWallet = await window.DalSolana.connect();
+          const bal = await window.DalSolana.balance(solWallet).catch(() => null);
+          if (bal !== null && bal < 0.00001) { anchorReviewDialog(r, `<div class="notice">${icon('info')} <span>На кошельке</span> ${esc(solWallet.slice(0, 4))}…${esc(solWallet.slice(-4))} <span>нет тестовых SOL для комиссии.</span> <button class="text-link" data-action="sol-airdrop">Получить 1 SOL</button> или возьмите на <a class="text-link" href="https://faucet.solana.com" target="_blank" rel="noopener">faucet.solana.com</a>.</div>`); icons(); return; }
+          const { signature, wallet } = await window.DalSolana.anchor(r.memo);
+          await api.post(`/reviews/${id}/anchor`, { signature, wallet, cluster: window.DalSolana.CLUSTER });
+          modal.close(); await render(); toast('Отзыв зафиксирован в Solana');
+        } catch (e) { if (e.status) throw e; toast(e.message || 'Не удалось записать в Solana'); }
+      }, button); break;
+      case 'delete-comment': guard(async () => {
+        await api.del(`/lessons/comments/${id}`);
+        $(`#cm-${id}`)?.remove(); toast('Комментарий удалён');
+      }, button); break;
       case 'signal': {
         const f = forecasts.find(x => x.id === id);
         openDialog(`${esc(f.ticker)}: обоснование`, `<p class="modal-text">${esc(f.rationale)}</p><div class="order-line"><span>Автор</span><strong>${esc(f.expert.name)}</strong></div><div class="order-line"><span>Опубликован</span><strong>${fmtDate(f.publishedAt)}</strong></div><div class="order-line"><span>Проверка условия</span><strong>${fmtDate(f.deadline)}</strong></div>${f.comments.length ? `<h3 class="modal-sub">Комментарии автора</h3>${f.comments.map(c => `<p class="modal-text"><small>${fmtDate(c.createdAt)}</small><br>${esc(c.text)}</p>`).join('')}` : ''}<p class="notice">Это не торговая рекомендация. Условие и срок зафиксированы при публикации.</p>`);
@@ -682,7 +716,7 @@
   });
   document.addEventListener('submit', e => {
     const form = e.target;
-    if (!['profileForm', 'chatForm', 'bookingForm', 'reviewForm'].includes(form.id)) return;
+    if (!['profileForm', 'chatForm', 'bookingForm', 'reviewForm', 'commentForm'].includes(form.id)) return;
     e.preventDefault();
     const data = new FormData(form), btn = $('button[type=submit]', form);
     if (form.id === 'profileForm') guard(async () => {
@@ -695,7 +729,13 @@
       if (text.length < 10) { toast('Напишите хотя бы 10 символов'); return; }
       const base = form.dataset.kind === 'course' ? 'courses' : 'products';
       await api.post(`/${base}/${form.dataset.id}/reviews`, { rating: Number(data.get('rating')), text });
-      await refreshCatalog(); modal.close(); render(); toast('Отзыв опубликован');
+      await refreshCatalog(); modal.close(); render(); toast(form.dataset.kind === 'course' ? 'Отзыв опубликован. Его можно зафиксировать в Solana.' : 'Отзыв опубликован');
+    }, btn);
+    if (form.id === 'commentForm') guard(async () => {
+      const input = form.elements.text, text = input.value.trim();
+      if (text.length < 2) { toast('Напишите вопрос или комментарий'); return; }
+      const x = await api.post(`/lessons/${form.dataset.lesson}/comments`, { text });
+      $('#noComments')?.remove(); $('#commentList').insertAdjacentHTML('beforeend', commentItem(x)); icons(); input.value = '';
     }, btn);
     if (form.id === 'chatForm') guard(async () => {
       const input = form.elements.message, text = input.value.trim(); if (!text) return;

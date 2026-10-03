@@ -18,6 +18,7 @@ import { state } from './shims/sqlite.ts';
 import m001 from '../../server/migrations/001_init.sql';
 import m002 from '../../server/migrations/002_products.sql';
 import m003 from '../../server/migrations/003_solana.sql';
+import m004 from '../../server/migrations/004_reviews_chain.sql';
 
 const SEED_VIDEO = '/server/seed-assets/demo-lesson.mp4';
 const IDB = 'dal-browser', VERSION = 1;
@@ -49,6 +50,7 @@ export async function init(SQL: any) {
   vfs.set('/server/migrations/001_init.sql', m001);
   vfs.set('/server/migrations/002_products.sql', m002);
   vfs.set('/server/migrations/003_solana.sql', m003);
+  vfs.set('/server/migrations/004_reviews_chain.sql', m004);
   const video = await fetch(SEED_VIDEO).then(r => r.ok ? r.blob() : new Blob([])).catch(() => new Blob([]));
   vfs.set(SEED_VIDEO, video);
 

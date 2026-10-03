@@ -846,6 +846,14 @@ var DalEngine = (() => {
     const a = db.get("SELECT * FROM forecast_anchors WHERE forecast_id = ?", id);
     return a ? { cluster: a.cluster, signature: a.signature, wallet: a.wallet, createdAt: a.created_at, explorerUrl: `https://explorer.solana.com/tx/${a.signature}${a.cluster === "devnet" ? "?cluster=devnet" : ""}` } : null;
   }
+  function reviewMemo(r) {
+    const h = createHash("sha256").update(String(r.text)).digest("hex");
+    return `DAL review v1 | id=${r.id} | course=${r.course_id} | rating=${r.rating} | completed=true | created=${r.created_at} | text_sha256=${h}`;
+  }
+  function reviewAnchor(db, id) {
+    const a = db.get("SELECT * FROM review_anchors WHERE review_id = ?", id);
+    return a ? { cluster: a.cluster, signature: a.signature, wallet: a.wallet, createdAt: a.created_at, explorerUrl: `https://explorer.solana.com/tx/${a.signature}${a.cluster === "devnet" ? "?cluster=devnet" : ""}` } : null;
+  }
 
   // server/src/courses.ts
   var isLive = (c) => c.status === "published" || c.status === "hidden";
@@ -1161,15 +1169,25 @@ var DalEngine = (() => {
       method: "GET",
       path: "/catalog/courses/:id/reviews",
       group: "Каталог",
-      summary: "Отзывы о курсе с ответами эксперта.",
-      handler: ({ params }) => {
+      summary: "Отзывы о курсе с ответами эксперта, записью для Solana (memo) и ссылкой на транзакцию, если отзыв зафиксирован.",
+      handler: ({ user, params }) => {
         const c = getCourse(db, params.id);
         if (c.status !== "published") throw notFound("Курс не найден");
         return db.all(
-          `SELECT r.id, u.name AS author, r.rating, r.text, r.created_at AS createdAt, r.reply, r.replied_at AS repliedAt
-         FROM reviews r JOIN users u ON u.id = r.user_id WHERE r.course_id = ? AND r.hidden = 0 ORDER BY r.created_at DESC`,
+          `SELECT r.*, u.name AS author FROM reviews r JOIN users u ON u.id = r.user_id WHERE r.course_id = ? AND r.hidden = 0 ORDER BY r.created_at DESC`,
           c.id
-        ).map((r) => ({ ...r, author: r.author.split(" ")[0] }));
+        ).map((r) => ({
+          id: r.id,
+          author: r.author.split(" ")[0],
+          rating: r.rating,
+          text: r.text,
+          createdAt: r.created_at,
+          reply: r.reply,
+          repliedAt: r.replied_at,
+          mine: !!user && r.user_id === user.id,
+          memo: reviewMemo(r),
+          anchor: reviewAnchor(db, r.id)
+        }));
       }
     });
     router.add({
@@ -1318,16 +1336,95 @@ var DalEngine = (() => {
       method: "POST",
       path: "/courses/:id/reviews",
       group: "Ученик",
-      summary: "Оставить отзыв о купленном курсе (один на курс).",
+      summary: "Оставить отзыв о курсе: только после прохождения всех уроков, один на курс, изменить нельзя.",
       auth: ["student"],
       body: "{ rating: 1–5, text: 10–1500 символов }",
       handler: ({ user, params, body }) => {
         const c = getCourse(db, params.id);
         if (!hasActiveEnrollment(db, user.id, c.id)) throw forbidden("Отзыв может оставить только ученик, купивший курс");
+        const p = progressOf(db, user.id, c.id);
+        if (!p.total || p.done < p.total) throw new HttpError(403, "course_not_completed", `Отзыв можно оставить после прохождения всего курса: пройдено ${p.done} из ${p.total} уроков`);
         const b = parse(body, { rating: num({ int: true, min: 1, max: 5 }), text: str({ min: 10, max: 1500 }) });
         const id = newId();
         db.run("INSERT INTO reviews (id, course_id, user_id, rating, text, created_at) VALUES (?, ?, ?, ?, ?, ?)", id, c.id, user.id, b.rating, b.text, nowIso());
         return { id, rating: b.rating, text: b.text };
+      }
+    });
+    router.add({
+      method: "POST",
+      path: "/reviews/:id/anchor",
+      group: "Ученик",
+      summary: "Сохранить ссылку на транзакцию Solana, в которой зафиксирован отзыв (memo: оценка, курс, хеш текста). Только автор, один раз.",
+      auth: ["student"],
+      body: '{ signature, wallet, cluster: "devnet" }',
+      handler: ({ user, params, body }) => {
+        const r = db.get("SELECT * FROM reviews WHERE id = ? AND user_id = ?", params.id, user.id);
+        if (!r) throw notFound("Отзыв не найден");
+        if (db.get("SELECT 1 FROM review_anchors WHERE review_id = ?", r.id)) throw conflict("already_anchored", "Отзыв уже зафиксирован в Solana");
+        const b = parse(body, {
+          signature: str({ min: 60, max: 100, pattern: /^[1-9A-HJ-NP-Za-km-z]+$/, patternMsg: "Некорректная подпись транзакции" }),
+          wallet: str({ min: 30, max: 50, pattern: /^[1-9A-HJ-NP-Za-km-z]+$/, patternMsg: "Некорректный адрес кошелька" }),
+          cluster: oneOf(["devnet", "mainnet-beta"])
+        });
+        db.run("INSERT INTO review_anchors (review_id, cluster, signature, wallet, memo, created_at) VALUES (?, ?, ?, ?, ?, ?)", r.id, b.cluster, b.signature, b.wallet, reviewMemo(r), nowIso());
+        return { id: r.id, memo: reviewMemo(r), anchor: reviewAnchor(db, r.id) };
+      }
+    });
+    const commentsAccess = (user, lessonId) => {
+      const ctx = lessonContext(db, lessonId);
+      const ok = user.role === "moderator" || ctx.course.expert_id === user.id || hasActiveEnrollment(db, user.id, ctx.course.id) && isLive(ctx.course);
+      if (!ok) throw forbidden("Обсуждение урока доступно ученикам курса");
+      return ctx;
+    };
+    const commentView = (r, user, course) => ({
+      id: r.id,
+      author: r.user_id === course.expert_id ? r.author : r.author.split(" ")[0],
+      role: r.user_id === course.expert_id ? "expert" : r.role,
+      text: r.text,
+      createdAt: r.created_at,
+      mine: r.user_id === user.id,
+      canDelete: r.user_id === user.id || course.expert_id === user.id || user.role === "moderator"
+    });
+    router.add({
+      method: "GET",
+      path: "/lessons/:id/comments",
+      group: "Ученик",
+      summary: "Вопросы и комментарии под уроком (ученики курса, эксперт, модератор).",
+      auth: "user",
+      handler: ({ user, params }) => {
+        const { course } = commentsAccess(user, params.id);
+        return db.all(`SELECT c.*, u.name AS author, u.role FROM lesson_comments c JOIN users u ON u.id = c.user_id
+                     WHERE c.lesson_id = ? AND c.hidden = 0 ORDER BY c.created_at`, params.id).map((r) => commentView(r, user, course));
+      }
+    });
+    router.add({
+      method: "POST",
+      path: "/lessons/:id/comments",
+      group: "Ученик",
+      summary: "Задать вопрос или оставить комментарий под уроком. Эксперт курса отвечает здесь же.",
+      auth: "user",
+      body: "{ text: 2–1000 символов }",
+      handler: ({ user, params, body }) => {
+        const { course } = commentsAccess(user, params.id);
+        const b = parse(body, { text: str({ min: 2, max: 1e3 }) });
+        const id = newId(), at = nowIso();
+        db.run("INSERT INTO lesson_comments (id, lesson_id, user_id, text, created_at) VALUES (?, ?, ?, ?, ?)", id, params.id, user.id, b.text, at);
+        return commentView({ id, user_id: user.id, author: user.name, role: user.role, text: b.text, created_at: at }, user, course);
+      }
+    });
+    router.add({
+      method: "DELETE",
+      path: "/lessons/comments/:id",
+      group: "Ученик",
+      summary: "Скрыть комментарий: автор, эксперт курса или модератор.",
+      auth: "user",
+      handler: ({ user, params }) => {
+        const c = db.get("SELECT * FROM lesson_comments WHERE id = ? AND hidden = 0", params.id);
+        if (!c) throw notFound("Комментарий не найден");
+        const { course } = lessonContext(db, c.lesson_id);
+        if (!(c.user_id === user.id || course.expert_id === user.id || user.role === "moderator")) throw forbidden();
+        db.run("UPDATE lesson_comments SET hidden = 1 WHERE id = ?", c.id);
+        return { id: c.id, hidden: true };
       }
     });
   }
@@ -3045,7 +3142,8 @@ var DalEngine = (() => {
         ["kamila", "c5", 70, 0.6],
         ["nurlan", "c3", 25, 0.3],
         ["sabina", "c6", 55, 0.4],
-        ["aruzhan", "c8", 12, 1]
+        ["aruzhan", "c8", 12, 1],
+        ["student", "c8", 10, 1]
       ].forEach(([u, c, d, p]) => enroll(u, c, d, p));
       const authors = { "Аружан К.": "aruzhan", "Данияр С.": "daniyar", "Мадина Ж.": "madina", "Гость 4821": "guest4821", "Нурлан Б.": "nurlan" };
       STUDIO.reviews.forEach((r, i) => db.run(
@@ -3061,6 +3159,15 @@ var DalEngine = (() => {
       ));
       db.run("INSERT INTO reviews (id, course_id, user_id, rating, text, created_at) VALUES (?, ?, ?, ?, ?, ?)", "r6", "c1", "madina", 5, "Понравилось, что можно последовательно разобраться в понятиях и задать вопросы. Особенно полезны примеры.", ago(30));
       db.run("INSERT INTO reviews (id, course_id, user_id, rating, text, created_at) VALUES (?, ?, ?, ?, ?, ?)", "r7", "c1", "daniyar", 4, "Стало понятнее, на какие исходные данные смотреть. Хотелось бы ещё больше задач для самостоятельного разбора.", ago(15));
+      const comment = (lesson, user, text, daysAgo, hour) => db.run("INSERT INTO lesson_comments (id, lesson_id, user_id, text, created_at) VALUES (?, ?, ?, ?, ?)", `lc-${lesson}-${user}-${daysAgo}-${hour}`, lesson, user, text, ago(daysAgo, hour));
+      const [c1a, c1b] = lessonIds.c1;
+      comment(c1a, "madina", "Какой горизонт считать долгосрочным, если цель — покупка квартиры через 5 лет?", 40, 11);
+      comment(c1a, "arman", "Пять лет — средний горизонт. Для такой цели больше подходят облигации и депозиты, акции — небольшой частью. Подробнее в уроке 6.", 40, 15);
+      comment(c1a, "student", "Спасибо, пример с подушкой безопасности очень помог.", 18, 20);
+      comment(c1b, "daniyar", "Резерв лучше держать в тенге или в валюте?", 30, 12);
+      comment(c1b, "arman", "Основную часть — в валюте ваших расходов, то есть в тенге. Подробный разбор будет в следующем модуле.", 29, 10);
+      comment(lessonIds.c8[0], "aruzhan", "Можно ли получить таблицу из разбора?", 11, 18);
+      comment(lessonIds.c8[0], "timur", "Да, ссылка на таблицу в описании урока.", 11, 20);
       const addForecast = (f, expert) => {
         db.run(
           `INSERT INTO forecasts (id, expert_id, ticker, name, direction, start_price, target_price, deadline, rationale, status, result_price, published_at, resolved_at, resolved_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -3267,6 +3374,9 @@ var DalEngine = (() => {
   // server/migrations/003_solana.sql
   var solana_default = "-- Фиксация прогнозов в блокчейне Solana (devnet): подпись транзакции с записью (memo) условий прогноза.\n-- Сама запись в блокчейне неизменяема; здесь хранится ссылка на неё. Запись делается один раз и не меняется.\nCREATE TABLE forecast_anchors (\n  forecast_id TEXT PRIMARY KEY REFERENCES forecasts(id) ON DELETE RESTRICT,\n  cluster     TEXT NOT NULL CHECK (cluster IN ('devnet', 'mainnet-beta')),\n  signature   TEXT NOT NULL UNIQUE,\n  wallet      TEXT NOT NULL,\n  memo        TEXT NOT NULL,\n  created_at  TEXT NOT NULL\n);\nCREATE TRIGGER forecast_anchors_immutable BEFORE UPDATE ON forecast_anchors\nBEGIN SELECT RAISE(ABORT, 'anchor_immutable'); END;\nCREATE TRIGGER forecast_anchors_no_delete BEFORE DELETE ON forecast_anchors\nBEGIN SELECT RAISE(ABORT, 'anchor_immutable'); END;\n";
 
+  // server/migrations/004_reviews_chain.sql
+  var reviews_chain_default = "-- Отзыв о курсе: оставляется один раз после прохождения всего курса и больше не меняется.\n-- Эксперт может только ответить (reply), модерация — скрыть по жалобе (hidden).\nCREATE TRIGGER reviews_text_immutable BEFORE UPDATE OF course_id, user_id, rating, text, created_at ON reviews\nBEGIN SELECT RAISE(ABORT, 'review_immutable'); END;\n\n-- Фиксация отзыва в Solana (devnet): ссылка на транзакцию с memo (оценка, курс, хеш текста). Один раз, без изменений.\nCREATE TABLE review_anchors (\n  review_id  TEXT PRIMARY KEY REFERENCES reviews(id) ON DELETE RESTRICT,\n  cluster    TEXT NOT NULL CHECK (cluster IN ('devnet', 'mainnet-beta')),\n  signature  TEXT NOT NULL UNIQUE,\n  wallet     TEXT NOT NULL,\n  memo       TEXT NOT NULL,\n  created_at TEXT NOT NULL\n);\nCREATE TRIGGER review_anchors_immutable BEFORE UPDATE ON review_anchors\nBEGIN SELECT RAISE(ABORT, 'anchor_immutable'); END;\nCREATE TRIGGER review_anchors_no_delete BEFORE DELETE ON review_anchors\nBEGIN SELECT RAISE(ABORT, 'anchor_immutable'); END;\n\n-- Вопросы и комментарии под уроком: ученики курса, эксперт курса (отвечает) и модератор.\nCREATE TABLE lesson_comments (\n  id         TEXT PRIMARY KEY,\n  lesson_id  TEXT NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,\n  user_id    TEXT NOT NULL REFERENCES users(id),\n  text       TEXT NOT NULL,\n  created_at TEXT NOT NULL,\n  hidden     INTEGER NOT NULL DEFAULT 0 CHECK (hidden IN (0, 1))\n);\nCREATE INDEX lesson_comments_lesson ON lesson_comments(lesson_id, created_at);\n";
+
   // web/src/entry.ts
   var SEED_VIDEO2 = "/server/seed-assets/demo-lesson.mp4";
   var IDB = "dal-browser";
@@ -3312,6 +3422,7 @@ var DalEngine = (() => {
     vfs.set("/server/migrations/001_init.sql", init_default);
     vfs.set("/server/migrations/002_products.sql", products_default);
     vfs.set("/server/migrations/003_solana.sql", solana_default);
+    vfs.set("/server/migrations/004_reviews_chain.sql", reviews_chain_default);
     const video = await fetch(SEED_VIDEO2).then((r) => r.ok ? r.blob() : new Blob([])).catch(() => new Blob([]));
     vfs.set(SEED_VIDEO2, video);
     state.initial = saved ? new Uint8Array(saved) : null;

@@ -104,7 +104,7 @@ export function seed(db: DB, siteDir: string, seedDir: string): { accounts: { em
       ['alibek', 'c2', 0, 0.2], ['guest4821', 'c2', 30, 0], ['aruzhan', 'c2', 115, 1], ['daniyar', 'c2', 80, 0.6], ['madina', 'c4', 75, 0.3],
       ['kamila', 'c4', 50, 0.8], ['nurlan', 'c4', 100, 0.5], ['erlan', 'c2', 170, 1], ['timur-o', 'c2', 135, 0.7], ['sabina', 'c4', 40, 0.4],
       ['aigerim', 'c4', 35, 0.2], ['alibek', 'c7', 140, 1], ['madina', 'c1', 90, 1], ['daniyar', 'c1', 45, 0.5], ['kamila', 'c5', 70, 0.6],
-      ['nurlan', 'c3', 25, 0.3], ['sabina', 'c6', 55, 0.4], ['aruzhan', 'c8', 12, 1]
+      ['nurlan', 'c3', 25, 0.3], ['sabina', 'c6', 55, 0.4], ['aruzhan', 'c8', 12, 1], ['student', 'c8', 10, 1]
     ] as [string, string, number, number][]).forEach(([u, c, d, p]) => enroll(u, c, d, p));
 
     // ----- Отзывы -----
@@ -113,6 +113,18 @@ export function seed(db: DB, siteDir: string, seedDir: string): { accounts: { em
       r.id, r.course, authors[r.name], r.rating, r.text, ago(4 + i * 6), r.reply, r.reply ? ago(3 + i * 6) : null));
     db.run('INSERT INTO reviews (id, course_id, user_id, rating, text, created_at) VALUES (?, ?, ?, ?, ?, ?)', 'r6', 'c1', 'madina', 5, 'Понравилось, что можно последовательно разобраться в понятиях и задать вопросы. Особенно полезны примеры.', ago(30));
     db.run('INSERT INTO reviews (id, course_id, user_id, rating, text, created_at) VALUES (?, ?, ?, ?, ?, ?)', 'r7', 'c1', 'daniyar', 4, 'Стало понятнее, на какие исходные данные смотреть. Хотелось бы ещё больше задач для самостоятельного разбора.', ago(15));
+
+    // ----- Вопросы под уроками -----
+    const comment = (lesson: string, user: string, text: string, daysAgo: number, hour: number) =>
+      db.run('INSERT INTO lesson_comments (id, lesson_id, user_id, text, created_at) VALUES (?, ?, ?, ?, ?)', `lc-${lesson}-${user}-${daysAgo}-${hour}`, lesson, user, text, ago(daysAgo, hour));
+    const [c1a, c1b] = lessonIds.c1;
+    comment(c1a, 'madina', 'Какой горизонт считать долгосрочным, если цель — покупка квартиры через 5 лет?', 40, 11);
+    comment(c1a, 'arman', 'Пять лет — средний горизонт. Для такой цели больше подходят облигации и депозиты, акции — небольшой частью. Подробнее в уроке 6.', 40, 15);
+    comment(c1a, 'student', 'Спасибо, пример с подушкой безопасности очень помог.', 18, 20);
+    comment(c1b, 'daniyar', 'Резерв лучше держать в тенге или в валюте?', 30, 12);
+    comment(c1b, 'arman', 'Основную часть — в валюте ваших расходов, то есть в тенге. Подробный разбор будет в следующем модуле.', 29, 10);
+    comment(lessonIds.c8[0], 'aruzhan', 'Можно ли получить таблицу из разбора?', 11, 18);
+    comment(lessonIds.c8[0], 'timur', 'Да, ссылка на таблицу в описании урока.', 11, 20);
 
     // ----- Прогнозы -----
     const addForecast = (f: any, expert: string) => {

@@ -38,7 +38,7 @@ All accounts share one password: `dal-demo-2026`.
 | `npm start` | Starts the server |
 | `npm run dev` | Starts the server and restarts it when code changes |
 | `npm run reset` | **Deletes the database and uploaded files** and recreates the demo data |
-| `npm test` | Runs the automated tests: 40 scenarios covering roles and rules |
+| `npm test` | Runs the automated tests: 42 scenarios covering roles and rules |
 | `npm run moderator -- email password Name` | Creates another moderator |
 
 Settings (port, paths) are set in the `.env` file. See `.env.example` for a template.
@@ -47,14 +47,14 @@ Settings (port, paths) are set in the `.env` file. See `.env.example` for a temp
 
 - **Login and roles:** student, expert, moderator. Passwords are stored as scrypt hashes, and the database holds only a hash of the login token. Password guessing is limited: 10 failures per 15 minutes.
 - **Catalog:** courses with search, filtering and sorting, course pages, experts with statistics, a public forecast journal.
-- **Student:** purchase without payment (the price is fixed at purchase time), lessons in order, progress, a course "in progress", reviews, refunds.
+- **Student:** purchase without payment (the price is fixed at purchase time), lessons in order, progress, a course "in progress", questions and comments under each lesson (the course expert answers there), a course review only after completing all lessons, refunds.
 - **Sessions, clubs, ideas (stage 2):** one product model for the 7 types in the schema.
   - Consultations, classes, mentoring: a session package, the expert's schedule slots, booking, cancellation (student — 24 hours ahead, expert — any time), the call link only for those who booked, buying a new package.
   - Clubs and chats: a 30-day subscription (the term is set by the expert), renewal adds to the term, after expiry a new subscription starts from today; the chat is for members with an active subscription only.
   - Ideas and reviews: free ones are open to everyone, paid ones show the first 400 characters before purchase.
   - Product reviews and complaints, product moderation, income from renewals.
 - **Teacher rating** per direction and overall — the arithmetic mean of the directions that have ratings. Expert social links (a link or @handle), profile photos for everyone, favorites in the account.
-- **Solana:** every forecast has a text record (memo) with its terms and the hash of its rationale; the expert anchors it with a Solana Devnet transaction via Phantom (`web/solana.js`), the server stores the transaction link (`POST /studio/forecasts/:id/anchor`), and anyone can verify it.
+- **Solana:** every forecast has a text record (memo) with its terms and the hash of its rationale; the expert anchors it with a Solana Devnet transaction via Phantom (`web/solana.js`), the server stores the transaction link (`POST /studio/forecasts/:id/anchor`), and anyone can verify it. A course review is anchored the same way: the memo holds the review id, course, rating and the SHA-256 of the text; the student signs it in Phantom (`POST /reviews/:id/anchor`, migration `004_reviews_chain.sql`).
 - **Server in the browser:** all the code in `src/` is bundled into `../web/engine.js` (`node ../web/build.mjs`) and runs on the page with SQLite in WebAssembly — this is how the site works on Vercel without a server.
 - **Video:** upload as a file up to 4 GB (MP4, MOV, WEBM) with streaming writes to disk. Playback with seeking. Who can watch: free lessons — everyone, the rest — buyers, the author and the moderator.
 - **Expert dashboard:**
@@ -96,6 +96,9 @@ They match the "Rights" page in Dal Studio. The most important ones are also pro
 | A product review is not deleted | API + database trigger |
 | A club chat is for members with an active subscription only | API |
 | Anchoring a forecast in Solana is done once and does not change | API + database trigger |
+| A course review — only after completing all lessons, one per course, its rating and text cannot be changed | API + unique constraint + database trigger |
+| Anchoring a review in Solana — only by its author, once, does not change | API + database trigger |
+| Lesson questions — only course students, the course expert and moderators | API |
 
 ## Structure
 

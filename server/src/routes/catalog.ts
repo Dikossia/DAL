@@ -6,6 +6,7 @@ import { CATEGORIES } from '../rules.ts';
 import { courseCard, structure, getCourse } from '../courses.ts';
 import { expertPublic, expertBrief } from '../experts.ts';
 import { productCard } from '../products.ts';
+import { reviewMemo, reviewAnchor } from '../anchor.ts';
 
 // Публичная часть: то, что видно без входа.
 export function registerCatalog(app: App) {
@@ -53,14 +54,16 @@ export function registerCatalog(app: App) {
   });
 
   router.add({
-    method: 'GET', path: '/catalog/courses/:id/reviews', group: 'Каталог', summary: 'Отзывы о курсе с ответами эксперта.',
-    handler: ({ params }) => {
+    method: 'GET', path: '/catalog/courses/:id/reviews', group: 'Каталог', summary: 'Отзывы о курсе с ответами эксперта, записью для Solana (memo) и ссылкой на транзакцию, если отзыв зафиксирован.',
+    handler: ({ user, params }) => {
       const c = getCourse(db, params.id);
       if (c.status !== 'published') throw notFound('Курс не найден');
       return db.all(
-        `SELECT r.id, u.name AS author, r.rating, r.text, r.created_at AS createdAt, r.reply, r.replied_at AS repliedAt
-         FROM reviews r JOIN users u ON u.id = r.user_id WHERE r.course_id = ? AND r.hidden = 0 ORDER BY r.created_at DESC`, c.id)
-        .map(r => ({ ...r, author: r.author.split(' ')[0] }));
+        `SELECT r.*, u.name AS author FROM reviews r JOIN users u ON u.id = r.user_id WHERE r.course_id = ? AND r.hidden = 0 ORDER BY r.created_at DESC`, c.id)
+        .map(r => ({
+          id: r.id, author: r.author.split(' ')[0], rating: r.rating, text: r.text, createdAt: r.created_at, reply: r.reply, repliedAt: r.replied_at,
+          mine: !!user && r.user_id === user.id, memo: reviewMemo(r), anchor: reviewAnchor(db, r.id)
+        }));
     }
   });
 
