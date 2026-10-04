@@ -66,7 +66,8 @@
     if (out == null) { const f = fallback(t); out = f !== t ? f : null; }
     return out;
   }
-  const T = s => { const v = base(s.trim()); return v == null ? s : v; };
+  const T = s => { const t = s.trim(); let v = base(t); if (v == null || CYR.test(v)) for (const [re, fn] of PATTERNS) { const m = re.exec(t); if (m) { v = fn(m); break; } } return v == null ? s : v; };
+  const ROLE_OF = r => ROLE_EN[r] || r;
   // Sentences with names, titles or dates inside.
   const PATTERNS = [
     [/^Урок «(.+)» будет удалён\.$/, m => `Lesson "${T(m[1])}" will be deleted.`],
@@ -87,7 +88,56 @@
     [/^обновлён (.+)$/, m => `updated ${T(m[1])}`],
     [/^Опубликован (.+)$/, m => `Published ${T(m[1])}`],
     [/^Записано (.+)$/, m => `Recorded ${T(m[1])}`],
-    [/^отправлен (.+)$/, m => `submitted ${T(m[1])}`]
+    [/^отправлен (.+)$/, m => `submitted ${T(m[1])}`],
+    [/^Подтверждён (.+)$/, m => `Verified ${T(m[1])}`],
+    [/^Итог можно записать не раньше даты проверки \((.+)\)$/, m => `The result can be recorded no earlier than the check date (${m[1]})`],
+    [/^По (\S+) уже есть открытый прогноз\. Дождитесь его итога\.$/, m => `There is already an open forecast for ${m[1]}. Wait for its result.`],
+    [/^Модерация вернула: (.+)$/, m => `Moderation sent it back: ${T(m[1])}`],
+    [/^На модерации с (.+)$/, m => `Under moderation since ${T(m[1])}`],
+    [/^Прогноз (\S+)$/, m => `Forecast ${m[1]}`],
+    [/^Допустимо: (.+)$/, m => `Allowed: ${m[1]}`],
+    [/^Цена закрытия на (.+?) (не ниже|не выше) (\$[\d\s.,]+)$/, m => `Closing price on ${T(m[1])} ${m[2] === 'не ниже' ? 'at or above' : 'at or below'} ${m[3].replace(/\s/g, '')}`],
+    [/^Цена закрытия на (.+), \$$/, m => `Closing price on ${T(m[1])}, $`],
+    [/^Лучшие в направлении «(.+)»$/, m => `Top in “${T(m[1])}”`],
+    [/^Средняя оценка по отзывам учеников в направлении «(.+)»\.$/, m => `Average rating from student reviews in “${T(m[1])}”.`],
+    [/^(.+?) Статистика прогнозов отделена от отзывов об обучении\.$/, m => `${T(m[1])} Forecast statistics are separate from teaching reviews.`],
+    [/^Получать доступ к курсам может ученик\. Вы вошли как (\S+)\.$/, m => `Only students can get access to courses. You are signed in as ${ROLE_OF(m[1])}.`],
+    [/^Покупать может ученик\. Вы вошли как (\S+?)( — это ваш продукт)?\.$/, m => `Only students can buy. You are signed in as ${ROLE_OF(m[1])}${m[2] ? ' — this is your product' : ''}.`],
+    [/^Вы вошли как (\S+)\. Свои курсы и продукты вы ведёте в Dal Studio\.$/, m => `You are signed in as ${ROLE_OF(m[1])}. You manage your courses and products in Dal Studio.`],
+    [/^Вы вошли как (\S+)\. Свои курсы и прогресс смотрите на сайте Dal\.$/, m => `You are signed in as ${ROLE_OF(m[1])}. See your courses and progress on the Dal site.`],
+    [/^(.+), рады вас видеть$/, m => `${T(m[1])}, good to see you`],
+    [/^Подписка до (.+)$/, m => `Subscription until ${T(m[1])}`],
+    [/^Подписка закончилась (.+)$/, m => `Subscription ended ${T(m[1])}`],
+    [/^Подписка продлена до (.+)$/, m => `Subscription extended until ${T(m[1])}`],
+    [/^Вы в клубе до (.+)$/, m => `You're in the club until ${T(m[1])}`],
+    [/^продление до (.+)$/, m => `renewal until ${T(m[1])}`],
+    [/^Курс возвращён: (.+)$/, m => `Course refunded: ${T(m[1])}`],
+    [/^Оплата возвращена: (.+)$/, m => `Payment refunded: ${T(m[1])}`],
+    [/^Вы записаны: (.+)$/, m => `You're booked: ${T(m[1])}`],
+    [/^Встреча (.+) будет отменена, а встреча вернётся в ваш пакет\. Время станет свободным для других\.$/, m => `The session on ${T(m[1])} will be canceled and returned to your package. The time becomes free for others.`],
+    [/^Встреча (.+) с учеником (.+) будет отменена\. Встреча вернётся ученику в пакет, а окно станет свободным\. Предупредите ученика в чате или на встрече заранее\.$/, m => `The session on ${T(m[1])} with ${T(m[2])} will be canceled. It returns to the student's package and the slot becomes free. Let the student know in advance in the chat or at a session.`],
+    [/^(\S+): проверка в Solana$/, m => `${m[1]}: Solana verification`],
+    [/^Проверка (\S+) в Solana$/, m => `${m[1]}: Solana verification`],
+    [/^(\S+): обоснование$/, m => `${m[1]}: rationale`],
+    [/^Видео «(.+)» загружено$/, m => `Video “${m[1]}” uploaded`],
+    [/^ближайшее свободное время (.+)$/, m => `next free time ${T(m[1])}`],
+    [/^с (\d.+)$/, m => `from ${T(m[1])}`],
+    [/^(.+) целиком$/, m => `${T(m[1])} in full`],
+    [/^На модерации с (.+)\. Расписание можно пополнять и сейчас\.$/, m => `Under moderation since ${T(m[1])}. You can keep adding to the schedule meanwhile.`],
+    [/^за (\S+?)(?:, с учётом сетевых сборов −(.+))?$/, m => `for ${T(m[1])}${m[2] ? `, after network fees −${m[2]}` : ''}`],
+    [/^возвратов: (\d+) на (.+)$/, m => `refunds: ${m[1]} for ${m[2]}`],
+    [/^возвратов не было$/, () => 'no refunds'],
+    [/^Сетевые сборы за прогнозы: (\d+) × (.+?) = (.+?)\. Сбор покрывает запись условий и итога в блокчейн Solana\.$/, m => `Network fees for predictions: ${m[1]} × ${m[2]} = ${m[3]}. The fee covers recording the terms and the result on the Solana blockchain.`],
+    [/^«(.+)» и его расписание будут удалены без возможности восстановления\.$/, m => `“${T(m[1])}” and its schedule will be permanently deleted.`],
+    [/^«(.+)» и все загруженные видео будут удалены без возможности восстановления\.$/, m => `“${T(m[1])}” and all uploaded videos will be permanently deleted.`],
+    [/^Модуль «(.+)» и (\d+) (?:урок|урока|уроков) с видео будут удалены\.$/, m => `Module “${T(m[1])}” and ${m[2]} lesson(s) with videos will be deleted.`],
+    [/^Комментарий к (\S+)$/, m => `Comment on ${m[1]}`],
+    [/^Добавлено окон: (\d+)(?:\. Пропущено: (\d+) \((.+)\))?$/, m => `Slots added: ${m[1]}${m[2] ? `. Skipped: ${m[2]} (${T(m[3])})` : ''}`],
+    [/^Узел Solana не ответил: (.+)\. Проверьте вручную по ссылке\.$/, m => `The Solana node didn't respond: ${m[1]}. Check manually via the link.`],
+    [/^Узел Solana не ответил: (.+)\. Попробуйте обновить страницу\.$/, m => `The Solana node didn't respond: ${m[1]}. Try refreshing the page.`],
+    [/^Выдан DAL и записан в блокчейн Solana ?(.*)\. Изменить или подделать запись нельзя\.$/, m => `Issued by DAL and recorded on the Solana blockchain${m[1] ? ' ' + T(m[1]) : ''}. The record cannot be changed or forged.`],
+    [/^блок ([\d\s\u00a0\u202f]+)$/, m => `block ${m[1].replace(/[\s\u00a0\u202f]/g, ',')}`],
+    [/^кошелёк (эксперта |автора )?(.+)$/, m => `${m[1] === 'эксперта ' ? "expert's " : m[1] === 'автора ' ? "author's " : ''}wallet ${m[2]}`]
   ];
   function tr(raw) {
     if (!raw || !CYR.test(raw)) return null;
@@ -108,6 +158,8 @@
   // For text drawn outside the DOM (e.g. the certificate PDF).
   window.DalLang.t = s => { const v = tr(String(s)); return v == null ? s : v.trim(); };
   const ATTRS = ['placeholder', 'title', 'aria-label', 'alt'];
+  // Default values typed by the app (not by people), e.g. a new module's name.
+  const DEFAULT_VALUE = /^Модуль (\d+)$/;
   function walk(root) {
     if (root.nodeType === 3) { const v = tr(root.nodeValue); if (v != null && v !== root.nodeValue) root.nodeValue = v; return; }
     if (root.nodeType !== 1 && root.nodeType !== 9) return;
@@ -121,6 +173,8 @@
       if (!e || !e.getAttribute) continue;
       for (const a of ATTRS) { const v = e.getAttribute(a); const t = v && tr(v); if (t != null && t !== v) e.setAttribute(a, t); }
     }
+    const inputs = root.querySelectorAll ? root.querySelectorAll('input[value]') : [];
+    for (const i of inputs) { const m = DEFAULT_VALUE.exec(i.getAttribute('value') || ''); if (m && i.value === i.getAttribute('value') && document.activeElement !== i) { const v = `Module ${m[1]}`; i.setAttribute('value', v); i.value = v; } }
   }
   const obs = new MutationObserver(ms => {
     for (const m of ms) {
