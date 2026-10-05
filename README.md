@@ -97,7 +97,7 @@ The 5 ₸ fee covers transaction fees with a margin, but not the one-time storag
 - Clubs and chats with 30-day subscriptions, renewal and live chat
 - Paid ideas with a preview before purchase
 - **Predictions recorded on Solana automatically**, with the resolution rule and the outcome; a "verify" button for every visitor
-- Optional "Connect wallet" button for crypto users (Phantom on Devnet)
+- Optional "Connect your own wallet" in the profile for crypto users (Phantom on Devnet, needed only for USDC payments) — not shown in the header, so newcomers never see crypto prompts
 - Dal Studio for experts: courses with video upload, 7 product types, schedule, forecasts, students, reviews, income
 - Moderation: courses and products before publication, review complaints, expert verification, forecast results
 - English and Russian interface, light and dark themes, responsive layout

@@ -121,3 +121,4 @@ pre.memo{white-space:pre-wrap;word-break:break-all;font:11px/1.6 ui-monospace,Co
 .vh{font-size:16px;margin:26px 0 12px}.vchecks{list-style:none;padding:0;display:grid;gap:10px}.vcheck{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--line);border-radius:8px;padding:12px 14px;background:var(--surface)}.vcheck>svg{width:20px;height:20px;flex-shrink:0}.vcheck.ok>svg{color:#22704f}.vcheck.bad>svg{color:#ab5442}.vcheck.wait>svg{color:var(--muted)}.vcheck span{display:grid;gap:4px;min-width:0}.vcheck strong{font-size:13px}.vcheck small{font-size:11px;color:var(--muted);overflow-wrap:anywhere}.vcheck code{font-size:10px}
 .name-row{display:flex;gap:10px;margin:10px 0 6px}.name-row input{flex:1;min-width:0}.name-ok{color:#22704f;font-weight:700}.name-bad{color:#ab5442;font-weight:700}
 @media(max-width:760px){.name-row{flex-direction:column}}
+.own-wallet{margin:6px 0 8px}

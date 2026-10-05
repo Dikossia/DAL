@@ -1979,4 +1979,10 @@ window.DAL_I18N_EN = {"@channel или ссылка":"@channel or link",
 "Не больше {n}":"At most {n}",
 "Ожидается true или false":"true or false is expected",
 "Не больше {n} пунктов":"At most {n} items",
-"Каждый пункт не длиннее {n} символов":"Each item at most {n} characters"};
+"Каждый пункт не длиннее {n} символов":"Each item at most {n} characters",
+"Подключить свой кошелёк":"Connect your own wallet",
+"Необязательно: кошелёк Phantom для оплаты в USDC":"Optional: a Phantom wallet for paying in USDC",
+"Свой кошелёк Solana":"Your own Solana wallet",
+"Нужен только для оплаты в USDC и для фиксации отзыва через Phantom. Для всего остального DAL пользуется встроенным кошельком.":"Only needed to pay in USDC and to anchor a review via Phantom. For everything else DAL uses your built-in wallet.",
+"Если у вас есть криптовалюта, установите расширение Phantom и включите сеть Devnet: Настройки → Developer Settings → Testnet mode.":"If you use crypto, install the Phantom extension and enable Devnet: Settings → Developer Settings → Testnet mode.",
+"Необязательно. Подключите Phantom, если хотите платить в USDC. Можно и забрать ключ кошелька DAL в Phantom.":"Optional. Connect Phantom if you want to pay in USDC. You can also move your DAL wallet key into Phantom."};

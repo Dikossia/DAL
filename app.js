@@ -425,7 +425,7 @@
     const body = w
       ? `<div class="wallet-row"><code class="wallet-address">${esc(w.address)}</code><button class="icon-button" data-action="copy-text" data-text="${esc(w.address)}" title="Скопировать адрес" aria-label="Скопировать адрес">${icon('copy')}</button><a class="text-link" href="${esc(w.url)}" target="_blank" rel="noopener">${icon('external-link')}Solana Explorer</a></div><p class="fine-print">Создан ${fmtDate(w.createdAt)}. Сертификатов: ${d.certificates}${me.role === 'expert' ? ` · прогнозов, записанных в Solana: ${d.forecasts}` : ''}.</p>`
       : `<p class="fine-print">Кошелёк создастся автоматически, когда понадобится: например, при получении первого сертификата${me.role === 'expert' ? ' или публикации прогноза' : ''}.</p>`;
-    return `<section class="wallet-section"><h2>${icon('wallet')}Кошелёк DAL</h2><p class="subtitle">Встроенный кошелёк привязан к вашему аккаунту. Покупать криптовалюту, ставить расширения и платить комиссии сети не нужно — это делает DAL.</p>${body}<div class="wallet-help"><div><strong>${icon('life-buoy')}Если забудете пароль</strong><p>Восстановите доступ по коду на почту — кошелёк, сертификаты и записи в блокчейне останутся с аккаунтом.</p></div><div><strong>${icon('key-round')}Свой криптокошелёк</strong><p>Можно забрать ключ и открыть кошелёк в Phantom. Для DAL это не обязательно.</p>${w ? `<button class="text-link" data-action="wallet-export">${icon('key-round')}Экспортировать ключ</button>` : ''}</div></div></section>`;
+    return `<section class="wallet-section"><h2>${icon('wallet')}Кошелёк DAL</h2><p class="subtitle">Встроенный кошелёк привязан к вашему аккаунту. Покупать криптовалюту, ставить расширения и платить комиссии сети не нужно — это делает DAL.</p>${body}<div class="wallet-help"><div><strong>${icon('life-buoy')}Если забудете пароль</strong><p>Восстановите доступ по коду на почту — кошелёк, сертификаты и записи в блокчейне останутся с аккаунтом.</p></div><div><strong>${icon('key-round')}Свой криптокошелёк</strong><p>Необязательно. Подключите Phantom, если хотите платить в USDC. Можно и забрать ключ кошелька DAL в Phantom.</p><div class="own-wallet" id="ownWalletMount"></div>${w ? `<button class="text-link" data-action="wallet-export">${icon('key-round')}Экспортировать ключ</button>` : ''}</div></div></section>`;
   }
   async function ordersSection() {
     const list = await api.get('/me/orders').catch(() => []);
@@ -482,6 +482,7 @@
     clearTimeout(slow);
     if (my !== seq) return;
     main.innerHTML = `<div class="page">${html}${footer()}</div>`;
+    window.DalWallet?.mount($('#ownWalletMount', main));
     icons();
     if ($('#catalogSort')) $('#catalogSort').value = catalogSort;
     document.title = `Dal · ${$('h1', main)?.textContent || mode.name}`;
