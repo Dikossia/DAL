@@ -266,7 +266,7 @@
     openDialog('Как увидит ученик', `<article class="preview-card"><div class="preview-cover">${coverHTML(c.coverUrl)}</div><div class="preview-body"><span class="product-kicker">${esc(c.categoryName)}</span><h3>${esc(c.title || 'Новый курс')}</h3><span class="expert-inline">${profile?.avatarUrl ? `<img src="${esc(profile.avatarUrl)}" alt="">` : ''}<span>${esc(me.name)}</span></span><p>${esc(c.description) || 'Описание пока не заполнено.'}</p><div class="product-meta"><span>${icon('play')}${ls.length} ${plural(ls.length, 'урок', 'урока', 'уроков')}</span><span>${icon('clock-3')}${totalTime(c.duration)}</span></div><div class="product-bottom"><strong>${money(c.price)}</strong></div></div></article>${free.length ? `<h4 class="preview-sub">Можно посмотреть до покупки</h4><ul class="plain-list">${free.map(l => `<li>${esc(l.title || 'Урок без названия')}</li>`).join('')}</ul>` : ''}`, 'wide');
   }
   function playLesson(lid, title) {
-    openDialog(esc(title || 'Урок'), `<video class="player" controls playsinline src="${esc(api.mediaUrl(`/lessons/${lid}/video`))}"></video><p class="fine-print" id="playerNote"></p>`, 'wide');
+    openDialog(esc(title || 'Урок'), `<video class="player" controls controlslist="nodownload noplaybackrate noremoteplayback" disablepictureinpicture disableremoteplayback playsinline src="${esc(api.mediaUrl(`/lessons/${lid}/video`))}"></video><p class="fine-print" id="playerNote"></p>`, 'wide');
     $('#modal video').addEventListener('error', () => { $('#playerNote').textContent = 'Браузер не может воспроизвести этот файл. Попробуйте MP4 с кодеком H.264.'; }, { once: true });
   }
 

@@ -137,6 +137,7 @@
     [/^Узел Solana не ответил: (.+)\. Попробуйте обновить страницу\.$/, m => `The Solana node didn't respond: ${m[1]}. Try refreshing the page.`],
     [/^Выдан DAL и записан в блокчейн Solana ?(.*)\. Изменить или подделать запись нельзя\.$/, m => `Issued by DAL and recorded on the Solana blockchain${m[1] ? ' ' + T(m[1]) : ''}. The record cannot be changed or forged.`],
     [/^блок ([\d\s\u00a0\u202f]+)$/, m => `block ${m[1].replace(/[\s\u00a0\u202f]/g, ',')}`],
+    [/^(\d+)\. (.+)$/, m => `${m[1]}. ${T(m[2])}`],
     [/^кошелёк (эксперта |автора )?(.+)$/, m => `${m[1] === 'эксперта ' ? "expert's " : m[1] === 'автора ' ? "author's " : ''}wallet ${m[2]}`]
   ];
   function tr(raw) {
